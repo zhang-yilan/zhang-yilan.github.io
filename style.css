@@ -1,6 +1,11 @@
 body {
   margin: 10px;
-  font-family: "Courier New", "SimSun", "Source Han Serif" serif;
+  font-family:
+    "Courier New",
+    "SimSun",
+    "Songti SC",
+    "Source Han Serif SC",
+    serif;
   background: white;
   color: black;
 }
@@ -60,4 +65,42 @@ body {
 .pdf-item {
   margin-bottom: 10px;
   text-align: center;
+}
+
+/* IMAGE LIGHTBOX */
+
+.work img {
+  cursor: zoom-in;
+}
+
+.lightbox {
+  display: none;
+  position: fixed;
+  z-index: 999;
+  inset: 0;
+  background: white;
+  justify-content: center;
+  align-items: center;
+}
+
+.lightbox img {
+  max-width: 95vw;
+  max-height: 95vh;
+  object-fit: contain;
+  cursor: zoom-out;
+}
+
+.lightbox.active {
+  display: flex;
+}
+
+.lightbox .close {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  background: none;
+  border: none;
+  color: black;
+  font-size: 35px;
+  cursor: pointer;
 }
