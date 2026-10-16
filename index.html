@@ -1,300 +1,1065 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <title>Works</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yilan Zhang</title>
+<style>
+  :root { --paper: #f7f6f2; --ink: #24231f; --muted: #77746d; }
+  * { box-sizing: border-box; }
+  html, body { width:100%; height:100%; margin:0; overflow:hidden; background:var(--paper); color:var(--ink); }
+  body { font-family:"Courier New", "Songti TC", "Songti SC", "STSong", "Noto Serif SC", serif; }
+  button { font:inherit; color:inherit; }
+  #viewport { position:fixed; inset:0; overflow:hidden; cursor:grab; touch-action:none; }
+  #viewport.panning { cursor:grabbing; }
+  #world { position:absolute; left:0; top:0; width:1600px; height:1000px; transform-origin:0 0; }
+  .item { position:absolute; user-select:none; }
+  .item.movable { cursor:move; }
+  .picture { width:200px; height:150px; border:0; padding:0; background:transparent; display:flex; align-items:center; justify-content:center; }
+  .picture img { width:100%; height:100%; object-fit:contain; display:block; }
+  /* Sharp zoom: give only visible, enlarged photos more rendering pixels.
+     Their frame and positions remain exactly 200 x 150. */
+  .picture img.high-res-render {
+    position:absolute; left:0; top:0;
+    width:calc(100% * var(--photo-detail, 1));
+    height:calc(100% * var(--photo-detail, 1));
+    transform:scale(calc(1 / var(--photo-detail, 1)));
+    transform-origin:top left;
+  }
+  .picture, .picture img, .picture .placeholder { cursor:grab; }
+  .item img, .item a { -webkit-user-drag:none; user-drag:none; }
+  .item.dragging, .item.dragging * { cursor:grabbing !important; }
+  .picture .placeholder { font-size:10px; color:var(--muted); }
+  .picture:hover { outline:none; }
+  .word { white-space:pre-wrap; line-height:1.45; font-size:14px; max-width:260px; }
+  .word.heading { font-size:18px; }
+  /* Name and Notes tags: always remain on one horizontal line. */
+  .item[data-type="name"], .item[data-type="me"], .item[data-type="notes"] { white-space:nowrap; width:max-content; max-width:none; }
+  .item[data-type="name"] a, .item[data-type="me"] a { white-space:nowrap; }
+  .word.heading a { color:inherit; text-decoration:none; -webkit-user-drag:none; user-select:none; cursor:pointer; }
+  .word.heading a:hover { text-decoration:underline; text-underline-offset:4px; }
+  .word.subheading { font-size:24px; }
+  .instruction { font-size:16px; cursor:pointer; }
+  .item.instruction { cursor:pointer; }
+  .instruction:hover { text-decoration:underline; text-underline-offset:4px; }
+  #controls { position:fixed; inset:0; z-index:10; pointer-events:none; }
+  #controls button { position:absolute; right:3px; transform:translateY(-50%); writing-mode:vertical-rl; text-orientation:mixed; background:transparent; border:0; padding:5px 0; cursor:pointer; font-size:14px; font-family:inherit; pointer-events:auto; }
+  #reset-view { top:calc(33.333% + 12px); }
+  #save-layout { top:calc(66.667% + 12px); }
+  #controls button:hover { text-decoration:underline; text-underline-offset:4px; }
+  .gallery-button { background:transparent; border:0; padding:6px 9px; cursor:pointer; }
+  .gallery-button:hover { text-decoration:none; }
+  #search { position:fixed; bottom:13px; left:17px; z-index:10; display:flex; align-items:center; gap:8px; font-size:18px; }
+  #search label { cursor:text; }
+  #search input { width:150px; border:0; outline:0; background:transparent; border-radius:0; padding:2px 0 1px; font:inherit; color:inherit; appearance:none; }
+  #search input::-webkit-search-cancel-button { display:none; }
+  #search-status { display:none; }
+
+  /* INLINE GALLERY — EDIT HERE: controls live in the Works canvas, not a popup. */
+  .picture { position:relative; overflow:visible; }
+  .inline-gallery-controls { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity 220ms ease; }
+  .inline-gallery-controls.visible { opacity:1; }
+  .inline-gallery-controls button { position:absolute; top:50%; transform:translateY(-50%); border:0; background:var(--paper); padding:5px 7px; font:inherit; font-size:17px; cursor:pointer; pointer-events:auto; }
+  .inline-gallery-controls .inline-prev { left:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(-100%, -50%) scale(var(--inline-ui-inverse, 1)); transform-origin:right center; }
+  .inline-gallery-controls .inline-next { right:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(100%, -50%) scale(var(--inline-ui-inverse, 1)); transform-origin:left center; }
+  .inline-gallery-caption { position:absolute; top:calc(100% + var(--inline-caption-gap, 12px)); left:50%; transform:translateX(-50%) scale(var(--inline-ui-inverse, 1)); transform-origin:center top; width:max-content; max-width: min(440px, 85vw); text-align:center; white-space:pre-wrap; font-size:12px; line-height:18px; pointer-events:none; }
+  .picture .inline-gallery-video { display:none; width:100%; height:100%; object-fit:contain; }
+  #gallery { display:none; position:fixed; inset:0; z-index:20; background:var(--paper); }
+  #gallery.open { display:block; overflow:hidden; touch-action:none; }
+  /* EDIT — Entire gallery zooms and pans as one canvas. */
+  #gallery-stage { position:absolute; inset:0; display:flex; flex-direction:column; transform-origin:0 0; will-change:transform; touch-action:none; }
+  #gallery-stage.panning { cursor:grabbing; }
+  #gallery-top { padding:18px 22px; display:flex; align-items:center; justify-content:space-between; font-size:13px; }
+  #close { border:0; background:none; cursor:pointer; font-size:22px; padding:0 5px; }
+  #gallery-main { flex:1; min-height:0; display:flex; align-items:center; justify-content:center; gap:18px; padding:0 18px; }
+  #gallery-image-wrap { height:100%; max-height:calc(100vh - 135px); flex:1; display:flex; justify-content:center; align-items:center; min-width:0; }
+  #gallery-image, #gallery-video { max-width:100%; max-height:100%; object-fit:contain; }
+  #gallery-video { display:none; width:100%; }
+  /* GALLERY ZOOM — editable: image can grow beyond the gallery frame. */
+  #gallery-image-wrap { overflow:hidden; touch-action:none; cursor:grab; }
+  #gallery-image-wrap.zoom-dragging { cursor:grabbing; }
+  #gallery-image { transform-origin:center center; will-change:transform; user-select:none; -webkit-user-drag:none; }
+
+  #gallery-caption { height:104px; flex:0 0 104px; overflow-y:auto; padding:12px 22px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; font-size:12px; line-height:18px; white-space:pre-wrap; }
+  #notes-name, #notes-switch { position:absolute; z-index:4; white-space:pre-wrap; cursor:pointer; user-select:none; -webkit-user-drag:none; touch-action:none; }
+  #notes-name { font-size:18px; line-height:1.45; color:var(--ink); text-decoration:none; }
+  #notes-name:hover { text-decoration:underline; text-underline-offset:4px; }
+  #notes-switch { font-size:16px; line-height:normal; padding:0; margin:0; float:none; border:0; background:transparent; font-family:inherit; color:inherit; text-align:left; }
+  #notes-switch:hover { text-decoration:underline; text-underline-offset:4px; }
+  #me-navigation { position:absolute; top:0; left:0; display:flex; gap:28px; padding:0; z-index:3; white-space:nowrap; }
+  #me-navigation button { float:none; border:0; background:transparent; padding:0; font:inherit; font-size:16px; cursor:pointer; }
+  #me-navigation button:hover { text-decoration:underline; text-underline-offset:4px; }
+  #notes-viewport { position:absolute; inset:0; overflow:hidden; cursor:grab; touch-action:none; }
+  #notes-viewport.panning { cursor:grabbing; }
+  #notes-world { position:absolute; top:0; left:0; width:1600px; height:1000px; transform-origin:0 0; }
+  .note-link { position:absolute; transform:translateX(-50%); text-align:center; font-size:16px; line-height:1.45; white-space:nowrap; cursor:grab; user-select:none; }
+  .note-link a:link { color:#24231f; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+  .note-link a:visited { color:#2259b5; text-decoration:underline; }
+  .note-link a:hover { text-decoration:underline; }
+  .note-link a { -webkit-user-drag:none; user-select:none; }
+  body.notes-active #controls, body.notes-active #search { z-index:18; }
+  #notes-panel, .info-panel { display:none; position:fixed; z-index:15; inset:0; overflow:auto; background:var(--paper); padding:28px; }
+  #notes-panel.open, .info-panel.open { display:block; }
+  #notes-panel button:not(#notes-switch), .close-info { float:right; border:0; background:none; cursor:pointer; font-size:22px; }
+  #notes-content, .info-content { max-width:680px; margin:25vh auto; font-size:16px; line-height:1.5; white-space:pre-wrap; }
+  /* Mobile-only embedded Chinese serif: desktop typography is untouched. */
+  @font-face { font-family:"Embedded Mobile Songti"; src:url("data:font/woff2;base64,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") format("woff2"); font-style:normal; font-weight:400; font-display:swap; }
+
+  /* Additional Songti glyphs for the vertical Reset and Save controls. */
+  @font-face { font-family:"Embedded Mobile Songti"; src:url("data:font/woff2;base64,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") format("woff2"); font-style:normal; font-weight:400; font-display:swap; unicode-range:U+91CD,U+7F6E,U+4FDD,U+5B58; }
+
+  /* Songti glyph for the Works navigation tag on mobile. */
+  @font-face { font-family:"Embedded Mobile Songti"; src:url("data:font/woff2;base64,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") format("woff2"); font-style:normal; font-weight:400; font-display:swap; unicode-range:U+753B; }
+  @media (max-width:600px) {
+    body { font-family:"Courier New", "Embedded Mobile Songti", "Songti TC", "Songti SC", serif; }
+    /* Keep the desktop picture dimensions and arrangement on phones. */
+    .word.heading { font-size:15px; }
+    #notes-name { font-size:15px; }
+    .instruction, #notes-switch { font-size:13px; }
+    .note-link { font-size:13px; }
+    .item, .note-link, #notes-name, #notes-switch { touch-action:none; }
+    #notes-panel { padding:0; overflow:hidden; }
+    #notes-viewport { inset:0; }
+    #controls button { font-size:13px; }
+    #search { font-size:15px; }
+    #search input { font-size:15px; }
+    #gallery-caption { padding-bottom:12px; }
+    .word { max-width:190px; }
+    /* Match the quieter scale of the Notes page on mobile. */
+    #me-navigation button, .info-content { font-size:13px; }
+    .info-content { line-height:1.65; }
+    #gallery-main { gap:5px; padding:0 6px; }
+    .gallery-button { padding:6px; }
+    #search input { width:100px; }
+    #controls button { right:2px; }
+  }
+
+
+  /* EDIT — ME PAGE: centered navigation and bilingual information */
+  #me-panel { overflow:auto; }
+  #me-navigation { position:relative; left:auto!important; top:auto!important; flex-direction:row; align-items:center; justify-content:flex-start; gap:48px; width:auto; }
+  #me-panel .me-centered { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:105px; padding:50px 20px; box-sizing:border-box; }
+  #me-panel .info-content { margin:0; max-width:none; text-align:left; white-space:normal; line-height:1.7; }
+  #me-panel .bio-line { white-space:nowrap; margin-bottom:12px; }
+  #me-panel .me-text-block { width:max-content; max-width:100%; text-align:left; }
+  /* EDIT — Actual space between navigation and biography (same parent). */
+  #me-panel #me-navigation { margin-bottom:64px; }
+  #me-panel .bio-line:last-child { margin-bottom:0; }
+  #me-panel .bio-line span { margin-left:14px; }
+  @media(max-width:700px) {
+    #me-panel .me-centered { gap:105px; }
+    #me-panel .bio-line { white-space:normal; }
+    #me-panel .bio-line span { display:inline; }
+  }
+</style>
 </head>
-
-<div class="lightbox" id="lightbox">
-  <img id="lightbox-img">
-</div>
-
 <body>
-
-  <div class="nav">
-    <span class="left">张怡澜 Yilan Zhang</span>
-
-    <span class="right">
-      <a href="index.html">画 Works</a>
-      <a href="notes.html">笔记 Notes</a>
-      <a href="about.html">我 Me</a>
-    </span>
+<div id="viewport" aria-label="Canvas. Drag the background to move around; drag elements to rearrange them.">
+  <div id="world">
+    <!-- The starting layout echoes your sketch: no fixed navigation bar; the name, labels, images, and notes are separate movable elements. -->
   </div>
-
-  <div class="container">
-
-    <div class="work">
-      <img src="images/202612.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/202612_楔子_detail.jpg">
-      <p class="caption">
-        <span lang="zh">粘土，5.7 × 7 × 7 cm，2026</span><br>
-        clay. 2 1/4" X 2 3/4" X 2 3/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202612_舌头_detail.jpg">
-      <p class="caption">
-        <span lang="zh">橡皮泥、铜，1.3 × 7.6 × 10.2 cm，2026</span><br>
-        playdoh, copper. 1/2" X 3" X 4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/2026_install_crit space_composition.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260304_detail.jpg">
-      <p class="caption">
-        <span lang="zh">纸、丙烯、木头、铅笔、色粉、木炭、胶带、油画颜料、酪蛋白颜料、橡皮泥、蜡笔、蜡、亚麻布、墨水、丹培拉、银尖笔，34.3 × 97.8 × 7.6 cm，2026</span><br>
-        paper, acrylic, wood, graphite, pastel, charcoal, tape, oil, casein, playdoh, crayola, wax, linen, ink, distemper, silverpoint. 13 1/2" X 38 1/2" X 3". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260906-20260920_install.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260902.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩、墨水、蜡笔，15 × 9.8 cm，2026</span><br>
-        watercolor, ink, crayon on paper. 5 7/8" X 3 7/8". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260903.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，8.9 × 13.7 cm，2026</span><br>
-        watercolor on paper. 3 1/2" X 5 3/8". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260906.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，12.4 × 11.1 cm，2026</span><br>
-        watercolor on paper. 4 7/8" X 4 3/8". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260910.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，10.8 × 13.3 cm，2026</span><br>
-        watercolor on paper. 4 1/4" X 5 1/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260912.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，11.7 × 10.8 cm，2026</span><br>
-        watercolor on paper. 4 5/8" X 4 1/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260913.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，8.6 × 15 cm，2026</span><br>
-        watercolor on paper. 3 3/8" X 5 7/8". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260917.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，12.1 × 12.4 cm，2026</span><br>
-        watercolor on paper. 4 3/4" X 4 7/8". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260919.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，11.7 × 13.3 cm，2026</span><br>
-        watercolor on paper. 4 5/8" X 5 1/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260920.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，12.1 × 13.7 cm，2026</span><br>
-        watercolor on paper. 4 3/4" X 5 3/8". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260921.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，10.5 × 14.3 cm，2026</span><br>
-        watercolor on paper. 4 1/8" X 5 5/8". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202610.jpg">
-      <p class="caption">
-        <span lang="zh">油画颜料、彩色铅笔、木头，12.7 × 49.5 × 40.6 cm，2026</span><br>
-        oil, colored pencil, wood. 5" X 19 1/2" X 16". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202610_detail.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/202607.jpg">
-      <p class="caption">
-        <span lang="zh">核桃墨、纸、钉子，3.8 × 11.4 × 8.9 cm，2026</span><br>
-        walnut ink on paper, nails. 1 1/2" X 4 1/2" X 3 1/2". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <video controls>
-        <source src="videos/202607.mp4" type="video/mp4">
-      </video>
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/202607_side_right.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/2026_install.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/202605.jpg">
-      <p class="caption">
-        <span lang="zh">粘土、石膏、纸、墨汁、订书钉，14.6 × 18.4 × 1.9 cm，2026</span><br>
-        clay, plaster, paper, ink, staples. 5 3/4" X 7 1/4" X 3/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202605_side_left.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/202608.jpg">
-      <p class="caption">
-        <span lang="zh">纸上水彩，7.6 × 10.8 cm，2026</span><br>
-        watercolor on paper. 3" X 4 1/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202604.jpg">
-      <p class="caption">
-        <span lang="zh">木板、胶彩、钉子，15.9 × 18.4 × 1.9 cm，2026</span><br>
-        distemper on wood, nails. 6 1/4" X 7 1/4" X 3/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202604_side_right.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/20261101.jpg">
-      <p class="caption">
-        <span lang="zh">纸，12.7 × 22.9 × 22.9 cm，2026</span><br>
-        paper. 5" X 9" X 9". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260302_install.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/20260302.jpg">
-      <p class="caption">
-        <span lang="zh">木头、蜡、铅笔、色粉、帆布、亚麻布、订书钉、丙烯、彩色铅笔、蜡笔、银尖笔，228.6 × 33 × 5.1 cm；上：13 × 6.7 × 1.9 cm；下：35.6 × 33 × 5.1 cm，2026</span><br>
-        wood, wax, graphite, pastel, canvas, linen, staples, acrylic, colored pencil, crayola, silverpoint. 90" X 13" X 2"; upper piece: 5 1/8" X 2 5/8" X 3/4"; lower cluster: 14" X 13" X 2". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202606.jpg">
-      <p class="caption">
-        <span lang="zh">核桃墨、纸、木板、酪蛋白颜料、钉子，9.5 × 13.3 × 1.9 cm，2026</span><br>
-        walnut ink on paper, casein on panel, nails. 3 3/4" X 5 1/4" X 3/4". 2026
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202606_side_right.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/2025install.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/202508.jpg">
-      <p class="caption">
-        <span lang="zh">铜、木头，15.2 × 12.7 × 5.1 cm，2025</span><br>
-        copper, wood. 6" X 5" X 2". 2025
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202508_side_left.jpg">
-      <p class="caption"></p>
-    </div>
-
-    <div class="work">
-      <img src="images/202507.jpg">
-      <p class="caption">
-        <span lang="zh">墨汁、纸、木头，8.9 × 8.9 × 11.4 cm，2025</span><br>
-        ink, paper, wood. 3 1/2" X 3 1/2" X 4 1/2". 2025
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202504.jpg">
-      <p class="caption">
-        <span lang="zh">油画颜料、蜡、帆布、木板，81.3 × 121.9 cm，2025</span><br>
-        oil, pastel on encaustic on canvas mounted on cradled wood panel. 32" X 48". 2025
-      </p>
-    </div>
-
-    <div class="work">
-      <img src="images/202504_side detail.jpg">
-      <p class="caption"></p>
-    </div>
-
-  </div>
-
-<div class="lightbox" id="lightbox">
-  <img id="lightbox-img">
 </div>
 
-<script src="script.js"></script>
+<form id="search" role="search" onsubmit="return false;">
+  <label for="search-input" aria-label="Search">⌕</label>
+  <input id="search-input" type="search" aria-label="Search works and notes" autocomplete="off" spellcheck="false">
+  <span id="search-status" aria-live="polite"></span>
+</form>
+<div id="controls">
+  <button id="reset-view" title="Restore original view and layout">重置 reset</button>
+  <button id="save-layout" title="Save a screenshot of the entire canvas layout">保存 save</button>
+</div>
 
+<div id="gallery" aria-modal="true" role="dialog" aria-label="Image gallery">
+  <div id="gallery-stage">
+  <div id="gallery-top">
+    <span aria-hidden="true"></span>
+    <button id="close" aria-label="Close gallery">×</button>
+  </div>
+  <div id="gallery-main">
+    <button class="gallery-button" id="prev" aria-label="Previous image">←</button>
+    <div id="gallery-image-wrap"><img id="gallery-image" alt=""><video id="gallery-video" controls playsinline preload="metadata"></video></div>
+    <button class="gallery-button" id="next" aria-label="Next image">→</button>
+  </div>
+  <div id="gallery-caption"></div>
+  </div>
+</div>
+
+<div id="notes-panel">
+  <div id="notes-viewport" aria-label="Notes canvas: drag to pan, scroll to zoom">
+    <div id="notes-world">
+      <a id="notes-name" href="#me" aria-label="Personal information" draggable="false">张怡澜  Yilan Zhang</a>
+      <button id="notes-switch" type="button" aria-label="Return to works">画 works</button>
+    </div>
+  </div>
+</div>
+<div id="me-panel" class="info-panel">
+ <div class="me-centered">
+  <div class="me-text-block">
+  <nav id="me-navigation" aria-label="Navigate from personal information">
+    <button id="me-to-works" type="button">画 works</button>
+    <button id="me-to-notes" type="button">笔记 notes</button>
+  </nav>
+  <div class="info-content">
+    <div class="bio-line">2002年生于中国广东省深圳市 <span>B. 2002, Shenzhen, Guangdong, China</span></div>
+    <div class="bio-line">现居芝加哥、深圳 <span>based in Chicago and Shenzhen</span></div>
+  </div>
+  </div>
+ </div>
+</div>
+
+<script>
+/*
+  EDITING THIS WEBSITE
+
+  Use Cmd+F to find EDIT 1, EDIT 2, EDIT 3, or EDIT 4.
+  Edit the lists under EDIT 1, EDIT 3, and EDIT 4 as needed.
+  To rearrange works, edit x/y in EDIT 1 or use the Layout Editor.
+  To add gallery images, use the matching work id in EDIT 3.
+  Photo sharpness while zooming is handled automatically; no image changes needed.
+  EDIT 2 explains the phone layout; do not paste phone export code there.
+
+  Put your files in folders beside index.html:
+    images/   pictures (JPG, PNG, WebP)
+    videos/   videos (MP4)
+    pdfs/     PDFs
+
+  Give each work a different id. You can use its filename without .jpg.
+  Use the same id in EDIT 1 and EDIT 3 (if you add gallery media).
+  Match filenames exactly, including capital letters and extensions.
+  Separate entries with commas. Keep the [ ] and { } brackets.
+
+  Positions: x moves right or left; y moves down or up.
+  Negative coordinates are allowed. Comments like this do not show on the site.
+*/
+
+/* ==================== EDIT 1 — WORKS ON THE MAIN PAGE ====================
+   HOW TO PASTE CODE FROM THE WORKS LAYOUT EDITOR:
+   1. Copy the lines under its DESKTOP heading, beginning with
+      { id:"...", type:"image", ... }.
+   2. Find const ELEMENTS = [ just below. The name and Notes entries are editable in the Layout Editor too.
+   3. Replace ALL entries inside ELEMENTS with the complete editor output,
+      including name, Notes and pictures.
+   4. Do NOT paste the heading // DESKTOP or a second const ELEMENTS.
+      Keep the surrounding [ and ]; and separate entries with commas.
+   5. Check that each src points to the exact file in images/.
+
+   Add one line per picture. Copy this example into the list below:
+     { id:"202612", type:"image", src:"images/202612.jpg", caption:"202612", x:600, y:450 },
+
+   id      unique name for this work
+   src     picture file in the images/ folder
+   caption description of the picture
+   x, y    starting position on the main page, in pixels
+
+   EDIT HERE: name and notes-label x/y and text are generated by the layout editor.
+    Both tags remain clickable links. Replace these lines with generated entries.
+   To add more pictures or videos when a work is opened, use EDIT 3.
+======================================================================== */
+const ELEMENTS = [
+  // Move anything by changing x (right/left) and y (down/up).
+  { id:"name", type:"name", text:"张怡澜  Yilan Zhang", x:4021, y:318, className:"heading" },
+  { id:"notes-label", type:"notes", text:"笔记 notes", x:2375, y:706 },
+
+// Paste these picture entries inside const ELEMENTS = [ ... ]
+// EDIT HERE: replace this entire composition with Layout Editor generated entries, including both tags.
+{ id:"202621_day", type:"image", src:"images/202621_day.jpg", caption:"202621_day", x:454, y:249 },
+  { id:"202619", type:"image", src:"images/202619.jpg", caption:"202619", x:1006, y:538 },
+  { id:"202620", type:"image", src:"images/202620.jpg", caption:"202620", x:1245, y:586 },
+  { id:"2026_install_202616_17_18", type:"image", src:"images/2026_install_202616_17_18.jpg", caption:"2026_install_202616_17_18", x:-137, y:740 },
+  { id:"202616", type:"image", src:"images/202616.jpg", caption:"202616", x:-404, y:752 },
+  { id:"20260306", type:"image", src:"images/20260306.jpg", caption:"20260306", x:-857, y:1173 },
+  { id:"202615", type:"image", src:"images/202615.jpg", caption:"202615", x:1007, y:1221 },
+  { id:"202614", type:"image", src:"images/202614.jpg", caption:"202614", x:503, y:1451 },
+  { id:"202613", type:"image", src:"images/202613.jpg", caption:"202613", x:252, y:1452 },
+  { id:"202607_side_right", type:"image", src:"images/202607_side_right.jpg", caption:"202607_side_right", x:1007, y:1673 },
+  { id:"20260305_detail", type:"image", src:"images/20260305_detail.jpg", caption:"20260305_detail", x:-997, y:1389 },
+  { id:"20260302_install", type:"image", src:"images/20260302_install.jpg", caption:"20260302_install", x:-1354, y:1812 },
+  { id:"20260301", type:"image", src:"images/20260301.jpg", caption:"20260301", x:-1948, y:2167 },
+  { id:"20260303", type:"image", src:"images/20260303.jpg", caption:"20260303", x:-1618, y:2037 },
+  { id:"20260906-20260920_install", type:"image", src:"images/20260906-20260920_install.jpg", caption:"20260906-20260920_install", x:1917, y:1969 },
+  { id:"20261102", type:"image", src:"images/20261102.jpg", caption:"20261102", x:89, y:2546 },
+  { id:"202612", type:"image", src:"images/202612.jpg", caption:"202612", x:90, y:2120 },
+  { id:"202610", type:"image", src:"images/202610.jpg", caption:"202610", x:2463, y:2520 },
+  { id:"20261101", type:"image", src:"images/20261101.jpg", caption:"20261101", x:328, y:2656 },
+  { id:"202618", type:"image", src:"images/202618.jpg", caption:"202618", x:-219, y:535 },
+  { id:"202617", type:"image", src:"images/202617.jpg", caption:"202617", x:-31, y:931 },
+  { id:"202612_--_detail", type:"image", src:"images/202612_舌头_detail.jpg", caption:"202612_--_detail", x:90, y:2266 },
+  { id:"202612_--", type:"image", src:"images/202612_楔子.jpg", caption:"202612_--", x:90, y:1974 },
+  { id:"202605", type:"image", src:"images/202605.jpg", caption:"202605", x:1211, y:2648 },
+  { id:"202606", type:"image", src:"images/202606.jpg", caption:"202606", x:1111, y:2155 },
+  { id:"20260906", type:"image", src:"images/20260906.jpg", caption:"20260906", x:3212, y:1969 },
+  { id:"20260915", type:"image", src:"images/20260915.jpg", caption:"20260915", x:4202, y:2629 },
+  { id:"20260911", type:"image", src:"images/20260911.jpg", caption:"20260911", x:4202, y:2101 },
+  { id:"20260904", type:"image", src:"images/20260904.jpg", caption:"20260904", x:2816, y:1969 },
+  { id:"20260919", type:"image", src:"images/20260919.jpg", caption:"20260919", x:4202, y:3157 },
+  { id:"20260913", type:"image", src:"images/20260913.jpg", caption:"20260913", x:4202, y:2365 },
+  { id:"20260918", type:"image", src:"images/20260918.jpg", caption:"20260918", x:4202, y:3025 },
+  { id:"20260917", type:"image", src:"images/20260917.jpg", caption:"20260917", x:4202, y:2893 },
+  { id:"20260901", type:"image", src:"images/20260901.jpg", caption:"20260901", x:2222, y:1969 },
+  { id:"20260922", type:"image", src:"images/20260922.jpg", caption:"20260922", x:4202, y:3553 },
+  { id:"20260923", type:"image", src:"images/20260923.jpg", caption:"20260923", x:4202, y:3685 },
+  { id:"20260916", type:"image", src:"images/20260916.jpg", caption:"20260916", x:4202, y:2761 },
+  { id:"20260921", type:"image", src:"images/20260921.jpg", caption:"20260921", x:4202, y:3421 },
+  { id:"20260905", type:"image", src:"images/20260905.jpg", caption:"20260905", x:3014, y:1969 },
+  { id:"20260907", type:"image", src:"images/20260907.jpg", caption:"20260907", x:3410, y:1969 },
+  { id:"20260912", type:"image", src:"images/20260912.jpg", caption:"20260912", x:4202, y:2233 },
+  { id:"20260902", type:"image", src:"images/20260902.jpg", caption:"20260902", x:2420, y:1969 },
+  { id:"20260908", type:"image", src:"images/20260908.jpg", caption:"20260908", x:3608, y:1969 },
+  { id:"20260914", type:"image", src:"images/20260914.jpg", caption:"20260914", x:4202, y:2497 },
+  { id:"20260910", type:"image", src:"images/20260910.jpg", caption:"20260910", x:4004, y:1969 },
+  { id:"20260909", type:"image", src:"images/20260909.jpg", caption:"20260909", x:3806, y:1969 },
+  { id:"20260920", type:"image", src:"images/20260920.jpg", caption:"20260920", x:4202, y:3289 },
+  { id:"20260903", type:"image", src:"images/20260903.jpg", caption:"20260903", x:2618, y:1969 },
+  { id:"20260304_detail", type:"image", src:"images/20260304_detail.jpg", caption:"20260304_detail", x:-1171, y:1586 },
+  { id:"202601", type:"image", src:"images/202601.jpg", caption:"202601", x:32, y:3506 },
+  { id:"2026_install_202605_08_04", type:"image", src:"images/2026_install_202605_08_04.jpg", caption:"2026_install_202605_08_04", x:690, y:3094 },
+  { id:"202604", type:"image", src:"images/202604.jpg", caption:"202604", x:1570, y:2647 },
+  { id:"202608", type:"image", src:"images/202608.jpg", caption:"202608", x:1534, y:2918 },
+  { id:"202602", type:"image", src:"images/202602.jpg", caption:"202602", x:-551, y:3331 },
+  { id:"2025install", type:"image", src:"images/2025install.jpg", caption:"2025install", x:462, y:4039 },
+  { id:"202508", type:"image", src:"images/202508.jpg", caption:"202508", x:703, y:4023 },
+  { id:"202504", type:"image", src:"images/202504.jpg", caption:"202504", x:227, y:3925 },
+  { id:"202507", type:"image", src:"images/202507.jpg", caption:"202507", x:459, y:4176 },];
+
+/* ==================== EDIT 2 — PHONE NAVIGATION =========================
+   NO PHONE CODE NEEDS TO BE PASTED HERE.
+
+   The Layout Editor also generates const MOBILE_POSITIONS = { ... }.
+   Ignore that second block for this version of the website:
+   desktop and phone intentionally use the SAME picture coordinates.
+   The exported phone coordinates you supplied are identical to desktop.
+
+   The function originalWorkPosition() below already handles phones:
+   pictures use the x/y values from EDIT 1, while the name and Notes
+   tags are repositioned to fit the phone screen. phoneOpeningPan()
+   controls the initial phone view. Leave these functions unchanged.
+
+   If you later arrange DIFFERENT phone picture positions in the editor,
+   this website will need a code change to use MOBILE_POSITIONS.
+======================================================================== */
+const isMobile = () => window.matchMedia("(max-width:600px)").matches;
+const mobileWidth = () => Math.max(280, Math.min(window.innerWidth, 600));
+// Phone opens on the first picture, at the left edge and below the header.
+// The picture arrangement itself is never changed.
+function phoneOpeningPan() {
+  const first = ELEMENTS.find(item => item.type === "image");
+  if (!first) return {x:0,y:0};
+  return {x:-first.x, y:Math.round(window.innerHeight * 0.37 - first.y)};
+}
+function originalWorkPosition(item) {
+  // EDIT 1 controls all composition coordinates, including the name and Notes tags.
+  // Desktop and phone share these coordinates.
+  return {x:item.x,y:item.y};
+}
+const world = document.querySelector("#world");
+const viewport = document.querySelector("#viewport");
+const gallery = document.querySelector("#gallery");
+const galleryImage = document.querySelector("#gallery-image");
+const galleryCaption = document.querySelector("#gallery-caption");
+const galleryVideo = document.querySelector("#gallery-video");
+let scale = 1, panX = isMobile()?phoneOpeningPan().x:-20, panY = isMobile()?phoneOpeningPan().y:-5;
+let drag = null, moved = false, activeIndex = 0;
+let activeGallery = [];
+/* GALLERY ZOOM SETTINGS (EDIT HERE)
+   Enter gallery when a centered work fills this fraction of the available screen.
+   The image can keep growing after the gallery opens. */
+const GALLERY_TRIGGER_FRACTION = 0.86; // EDIT: 0.86 means 86% of available image area
+const GALLERY_EXIT_FRACTION = 0.90;
+let galleryZoom = 1, galleryOffsetX = 0, galleryOffsetY = 0;
+let galleryWorkId = null;
+const galleryStage = document.querySelector("#gallery-stage");
+const galleryWrap = document.querySelector("#gallery-image-wrap");
+function updateGalleryZoom() {
+  // Zoom the entire gallery composition, including arrows, caption and close button.
+  galleryStage.style.transform = `translate(${galleryOffsetX}px, ${galleryOffsetY}px) scale(${galleryZoom})`;
+}
+function resetGalleryZoom() {
+  galleryZoom = 1; galleryOffsetX = 0; galleryOffsetY = 0;
+  updateGalleryZoom();
+}
+function zoomGalleryAt(next, clientX, clientY) {
+  if (next < 1) { closeGallery(); return; }
+  next = boundedZoom(next);
+  galleryOffsetX = clientX - (clientX - galleryOffsetX) * next / galleryZoom;
+  galleryOffsetY = clientY - (clientY - galleryOffsetY) * next / galleryZoom;
+  galleryZoom = next;
+  updateGalleryZoom();
+}
+function galleryThreshold() {
+  return Math.min(window.innerWidth * .78, window.innerHeight * .73) * GALLERY_TRIGGER_FRACTION;
+}
+// Cache image elements rather than querying the DOM during every zoom step.
+let galleryTriggerPictures=[];
+let galleryTriggerFrame=0;
+function scheduleGalleryZoomTrigger() {
+  if (galleryTriggerFrame) return;
+  galleryTriggerFrame=requestAnimationFrame(() => {galleryTriggerFrame=0;checkGalleryZoomTrigger();});
+}
+// INLINE GALLERY — trigger is based on the picture's actual screen size.
+// The image remains in the Works canvas; only arrows and captions appear.
+function checkGalleryZoomTrigger() {
+  if (isNotesActive()) return;
+  const centerX=innerWidth/2, centerY=innerHeight/2;
+  const threshold=galleryThreshold();
+  let best=null, bestDistance=Infinity;
+  for (const el of galleryTriggerPictures) {
+    const picture=el.querySelector('.picture');
+    if (!picture) continue;
+    const r=picture.getBoundingClientRect();
+    // Keep the original photo crisp at fractional zoom levels without
+    // allocating large image layers for every off-screen work.
+    const visible=r.right>0 && r.bottom>0 && r.left<innerWidth && r.top<innerHeight;
+    const img=picture.querySelector('img');
+    if (img) {
+      const detail=visible && scale>1.25 ? (scale>3 ? 4 : 2) : 1;
+      if (Number(img.dataset.detail || 1)!==detail) {
+        img.dataset.detail=detail;
+        img.style.setProperty('--photo-detail',detail);
+        img.classList.toggle('high-res-render',detail>1);
+      }
+    }
+    const size=Math.min(r.width,r.height);
+    if (size < threshold * (galleryWorkId ? GALLERY_EXIT_FRACTION : 1)) continue;
+    // Select the eligible image nearest the viewport center, even while panning.
+    const dx=(r.left+r.right)/2-centerX;
+    const dy=(r.top+r.bottom)/2-centerY;
+    const distance=Math.hypot(dx,dy);
+    // Avoid activating a distant image just because it is large.
+    if (Math.abs(dx)>Math.max(r.width*.55,innerWidth*.18) ||
+        Math.abs(dy)>Math.max(r.height*.55,innerHeight*.18)) continue;
+    if (distance<bestDistance) { best=el; bestDistance=distance; }
+  }
+  const nextId=best?.dataset.id || null;
+  if (nextId===galleryWorkId) return;
+  if (nextId) openGallery(nextId,true);
+  else if (galleryWorkId) closeGallery();
+}
+
+/* ==================== EDIT 3 — PICTURES AND VIDEOS INSIDE A WORK =========
+   Add a gallery using the same id as the work in EDIT 1.
+   Each line is one picture or video, shown in the order listed.
+
+   Example (add inside WORK_GALLERIES):
+     "202600": [
+       { type:"image", src:"images/202612.jpg", caption:"Front" },
+       { type:"image", src:"images/202612-detail.jpg", caption:"Detail" },
+       { type:"video", src:"videos/202612.mp4", caption:"Video" }
+     ],
+
+   Upload the files to images/ or videos/ as appropriate.
+   If you don't add a gallery, clicking a work shows its main picture.
+======================================================================== */
+const WORK_GALLERIES = {
+  "202621_day": [
+    { type:"image", src:"images/202621_day.jpg", caption:"纸、木刻版画、丙烯、蓝色胶带、钉子。2026。\npaper, woodblock print, acrylic, blue tape, nails. 2026." },
+    { type:"image", src:"images/202621_night_neutural.jpg", caption:"纸、木刻版画、丙烯、蓝色胶带、钉子。2026。\npaper, woodblock print, acrylic, blue tape, nails. 2026." },
+    { type:"image", src:"images/202621_detail_middle.jpg", caption:"纸、木刻版画、丙烯、蓝色胶带、钉子。2026。\npaper, woodblock print, acrylic, blue tape, nails. 2026." },
+    { type:"image", src:"images/202621_detail_top.jpg", caption:"纸、木刻版画、丙烯、蓝色胶带、钉子。2026。\npaper, woodblock print, acrylic, blue tape, nails. 2026." },
+    { type:"image", src:"images/202621_detail_bottom.jpg", caption:"纸、木刻版画、丙烯、蓝色胶带、钉子。2026。\npaper, woodblock print, acrylic, blue tape, nails. 2026." }
+  ],
+  "202619": [
+    { type:"image", src:"images/202619.jpg", caption:"纸、酪蛋白颜料、铝丝。2026。\npaper, casein, aluminum wire. 2026." },
+    { type:"image", src:"images/202619_aged.jpg", caption:"1 month aged" }
+  ],
+  "202620": [
+    { type:"image", src:"images/202620.jpg", caption:"纸、水彩、铜丝。2026。\npaper, watercolor, copper wire. 2026." }
+  ],
+  "2026_install_202616_17_18": [
+    { type:"image", src:"images/2026_install_202616_17_18.jpg", caption:"" },
+    { type:"image", src:"images/202616.jpg", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.35 cm。2026.\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." },
+    { type:"image", src:"images/202618.jpg", caption:"纸、大头针。2026.\npaper, pins. 2026." },
+    { type:"image", src:"images/202617.jpg", caption:"纸、墨汁。2026.\npaper, ink. 2026." }
+  ],
+  "202616": [
+    { type:"image", src:"images/202616.jpg", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.35 cm。2026.\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." },
+    { type:"video", src:"videos/202612.mp4", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.35 cm。2026.\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." }
+  ],
+  "20260306": [
+    { type:"image", src:"images/20260306.jpg", caption:"木头、帆布、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, canvas, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, distemper, wax, playdoh, tape. 2026." },
+    { type:"image", src:"images/20260306_side.jpg", caption:"木头、帆布、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, canvas, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, distemper, wax, playdoh, tape. 2026." },
+    { type:"image", src:"images/20260306_other side.jpg", caption:"木头、帆布、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, canvas, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, distemper, wax, playdoh, tape. 2026." }
+  ],
+};
+
+// INLINE GALLERY — SCREEN-SIZE CONTROLS (EDIT HERE)
+// Keep caption and arrows at normal gallery font size even as Works zooms.
+// Gaps are screen-pixel distances, converted into world coordinates.
+let inlinePicture = null;
+let inlineUIFrame = 0;
+function scheduleInlineGalleryUI() {
+  if (!inlinePicture || inlineUIFrame) return;
+  inlineUIFrame = requestAnimationFrame(() => { inlineUIFrame = 0; updateInlineGalleryUI(); });
+}
+function updateInlineGalleryUI() {
+  if (!inlinePicture) return;
+  const zoom = Math.max(scale, 0.000001);
+  inlinePicture.style.setProperty('--inline-ui-inverse', String(1 / zoom));
+  inlinePicture.style.setProperty('--inline-arrow-gap', `${44 / zoom}px`);
+  inlinePicture.style.setProperty('--inline-caption-gap', `${4 / zoom}px`);
+}
+function applyView() {
+  world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+  scheduleInlineGalleryUI();
+  scheduleGalleryZoomTrigger();
+}
+// Automatically frame the full Works composition, regardless of item positions.
+// Measure the actual rendered items rather than assuming the 1600 x 1000 world
+// contains them. The margin is measured in screen pixels.
+function fitWorksComposition() {
+  const items = [...world.querySelectorAll(".item")];
+  if (!items.length) return;
+  let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
+  for (const el of items) {
+    const x=Number(el.dataset.x), y=Number(el.dataset.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    minX=Math.min(minX,x); minY=Math.min(minY,y);
+    maxX=Math.max(maxX,x+el.offsetWidth);
+    maxY=Math.max(maxY,y+el.offsetHeight);
+  }
+  if (!Number.isFinite(minX)) return;
+  const margin= Math.min(48, Math.max(16, Math.min(viewport.clientWidth,viewport.clientHeight)*0.045));
+  const availableW=Math.max(1,viewport.clientWidth-2*margin);
+  const availableH=Math.max(1,viewport.clientHeight-2*margin);
+  const contentW=Math.max(1,maxX-minX), contentH=Math.max(1,maxY-minY);
+  // Fit everything, but don't enlarge a small composition unnecessarily.
+  scale=boundedZoom(Math.min(1,availableW/contentW,availableH/contentH));
+  panX=(viewport.clientWidth-contentW*scale)/2-minX*scale;
+  panY=(viewport.clientHeight-contentH*scale)/2-minY*scale;
+  applyView();
+}
+function setPosition(el, x, y) {
+  el.dataset.x = x; el.dataset.y = y;
+  el.style.left = x + "px"; el.style.top = y + "px";
+}
+// Two-finger pinch zoom on either canvas. One finger still drags items or pans.
+// Track touch pointers before the individual drag handlers receive them.
+const touchPoints = new Map();
+let pinch = null;
+let suppressPinchClickUntil = 0;
+function pinchPage() {
+  return document.querySelector("#notes-panel").classList.contains("open") &&
+    !document.querySelector("#me-panel").classList.contains("open") ? "notes" : "works";
+}
+// Broad practical zoom range: avoids zero, infinity, and browser transform overflow.
+const MIN_ZOOM = 0.0001, MAX_ZOOM = 10000;
+function boundedZoom(value) { return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value)); }
+function beginPinch() {
+  if (touchPoints.size < 2) return;
+  const page = pinchPage();
+  const target = page === "notes" ? document.querySelector("#notes-viewport") : viewport;
+  const [a, b] = [...touchPoints.values()];
+  const rect = target.getBoundingClientRect();
+  const cx = (a.x + b.x) / 2 - rect.left;
+  const cy = (a.y + b.y) / 2 - rect.top;
+  const distance = Math.max(1, Math.hypot(a.x-b.x, a.y-b.y));
+  const zoom = page === "notes" ? notesScale : scale;
+  const px = page === "notes" ? notesPanX : panX;
+  const py = page === "notes" ? notesPanY : panY;
+  pinch = { page, target, distance, zoom, worldX:(cx-px)/zoom, worldY:(cy-py)/zoom };
+  // Cancel any single-finger drag when the second finger lands.
+  drag = null; notesDrag = null;
+  viewport.classList.remove("panning");
+  document.querySelector("#notes-viewport").classList.remove("panning");
+  moved = true; notesMoved = true;
+}
+document.addEventListener("pointerdown", e => {
+  if (e.pointerType !== "touch") return;
+  if (!e.target.closest("#viewport, #notes-viewport")) return;
+  touchPoints.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  if (touchPoints.size === 2) beginPinch();
+}, true);
+document.addEventListener("pointermove", e => {
+  if (e.pointerType !== "touch" || !touchPoints.has(e.pointerId)) return;
+  touchPoints.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  if (!pinch || touchPoints.size < 2) return;
+  e.preventDefault();
+  const [a,b] = [...touchPoints.values()];
+  const distance = Math.max(1, Math.hypot(a.x-b.x,a.y-b.y));
+  const zoom = boundedZoom(pinch.zoom * distance / pinch.distance);
+  const rect = pinch.target.getBoundingClientRect();
+  const cx = (a.x+b.x)/2 - rect.left;
+  const cy = (a.y+b.y)/2 - rect.top;
+  if (pinch.page === "notes") {
+    notesScale = zoom;
+    notesPanX = cx - pinch.worldX * zoom;
+    notesPanY = cy - pinch.worldY * zoom;
+    applyNotesView();
+  } else {
+    scale = zoom;
+    panX = cx - pinch.worldX * zoom;
+    panY = cy - pinch.worldY * zoom;
+    applyView();
+    scheduleGalleryZoomTrigger();
+  }
+}, {capture:true, passive:false});
+function endTouchPointer(e) {
+  if (e.pointerType !== "touch") return;
+  touchPoints.delete(e.pointerId);
+  if (pinch) {
+    suppressPinchClickUntil = Date.now() + 400;
+    moved = true; notesMoved = true;
+    if (touchPoints.size < 2) pinch = null;
+  }
+}
+document.addEventListener("pointerup", endTouchPointer, true);
+document.addEventListener("pointercancel", endTouchPointer, true);
+document.addEventListener("click", e => {
+  if (Date.now() < suppressPinchClickUntil && e.target.closest("#viewport, #notes-viewport")) {
+    e.preventDefault(); e.stopImmediatePropagation();
+  }
+}, true);
+
+function createElement(item) {
+  const el = document.createElement("div");
+  el.className = "item";
+  el.dataset.id = item.id;
+  el.dataset.type = item.type;
+  if (item.type === "image") {
+    el.classList.add("movable");
+    const picture = document.createElement("div");
+    picture.className = "picture";
+    picture.draggable = false;
+    picture.setAttribute("role", "button");
+    picture.setAttribute("tabindex", "0");
+    picture.setAttribute("aria-label", "Open " + item.caption);
+    const img = document.createElement("img");
+    img.src = item.src; img.alt = item.caption; img.draggable = false;
+    img.addEventListener("dragstart", e => e.preventDefault());
+    img.onerror = () => { img.remove(); const p = document.createElement("span"); p.className="placeholder"; p.textContent="image"; picture.appendChild(p); };
+    picture.appendChild(img); el.appendChild(picture);
+    picture.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (!moved) openGallery(item.id); } });
+    el.addEventListener("click", () => { if (!moved) openGallery(item.id); });
+  } else if (item.type === "notes") {
+    el.className += " instruction movable";
+    el.textContent = item.text;
+    el.addEventListener("click", () => { if (!moved) showNotes(); });
+  } else if (item.type === "name" || item.type === "me") {
+    el.className += " word movable " + (item.className || "");
+    const link = document.createElement("a");
+    link.href = "#me"; link.textContent = item.text; link.draggable = false;
+    link.addEventListener("dragstart", e => e.preventDefault());
+    link.draggable = false;
+    link.addEventListener("dragstart", e => e.preventDefault());
+    link.addEventListener("click", e => { e.preventDefault(); if (!moved) showMe(); });
+    el.appendChild(link);
+  } else {
+    el.className += " word movable " + (item.className || "");
+    el.textContent = item.text;
+  }
+  el.addEventListener("dragstart", e => e.preventDefault());
+  el.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || pinch || touchPoints.size > 1) return;
+    drag = { kind:"item", el, startX:e.clientX, startY:e.clientY,
+      x:Number(el.dataset.x), y:Number(el.dataset.y), pointerId:e.pointerId, didMove:false };
+    moved = false;
+    // Do not capture the pointer on text links: capturing can prevent their click event.
+    if (item.type !== "name" && item.type !== "me" && item.type !== "notes") el.setPointerCapture?.(e.pointerId);
+    e.stopPropagation();
+  });
+  world.appendChild(el);
+  { const pos=originalWorkPosition(item); setPosition(el,pos.x,pos.y); }
+}
+ELEMENTS.forEach(createElement);
+galleryTriggerPictures=[...world.querySelectorAll('.item[data-type="image"]')];
+fitWorksComposition();
+
+viewport.addEventListener("pointerdown", e => {
+  if (e.button !== 0 || pinch || touchPoints.size > 1 || e.target.closest(".item")) return;
+  drag = { kind:"pan", startX:e.clientX, startY:e.clientY, x:panX, y:panY, pointerId:e.pointerId };
+  moved = false; viewport.classList.add("panning"); viewport.setPointerCapture(e.pointerId);
+});
+window.addEventListener("pointermove", e => {
+  if (!drag || pinch) return;
+  const dx = e.clientX - drag.startX, dy = e.clientY - drag.startY;
+  if (Math.abs(dx) + Math.abs(dy) > 3) { moved = true; if (drag.kind === "item") { drag.didMove = true; drag.el.classList.add("dragging"); } }
+  if (drag.kind === "pan") { panX = drag.x + dx; panY = drag.y + dy; applyView(); }
+  else { setPosition(drag.el, drag.x + dx / scale, drag.y + dy / scale); }
+});
+window.addEventListener("pointerup", () => {
+  const wasDraggingElement = drag?.kind === "item" && drag.didMove;
+  if (drag?.kind === "item") {
+    drag.el.classList.remove("dragging");
+    if (drag.didMove) drag.el.dataset.suppressClickUntil = String(Date.now() + 350);
+  }
+  drag = null; viewport.classList.remove("panning");
+  if (wasDraggingElement) setTimeout(() => moved = false, 80);
+  else moved = false;
+});
+viewport.addEventListener("wheel", e => {
+  e.preventDefault();
+  const oldScale = scale, factor = e.deltaY < 0 ? 1.08 : 0.92;
+  const nextScale = boundedZoom(scale * factor);
+  const rect = viewport.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  panX = px - (px - panX) * nextScale / oldScale;
+  panY = py - (py - panY) * nextScale / oldScale;
+  scale = nextScale; applyView();
+  scheduleGalleryZoomTrigger();
+}, { passive:false });
+
+world.addEventListener("click", e => {
+  const item = e.target.closest(".item");
+  if (item && Date.now() < Number(item.dataset.suppressClickUntil || 0)) {
+    e.preventDefault(); e.stopImmediatePropagation();
+  }
+}, true);
+
+// INLINE GALLERY — image browsing inside the existing picture frame.
+function openGallery(workId, fromZoom=false) {
+  if (galleryWorkId===workId) return;
+  closeGallery();
+  const work=ELEMENTS.find(e=>e.id===workId && e.type==="image");
+  const el=[...world.querySelectorAll('.item[data-type="image"]')].find(e=>e.dataset.id===workId);
+  if (!work || !el) return;
+  activeGallery=WORK_GALLERIES[workId] || [{type:"image",src:work.src,caption:work.caption}];
+  activeIndex=0;galleryWorkId=workId;
+  inlinePicture=el.querySelector('.picture');
+  scheduleInlineGalleryUI();
+  let controls=inlinePicture.querySelector('.inline-gallery-controls');
+  if (!controls) {
+    controls=document.createElement('div');controls.className='inline-gallery-controls';
+    controls.innerHTML='<button type="button" class="inline-prev" aria-label="Previous image">←</button><button type="button" class="inline-next" aria-label="Next image">→</button><div class="inline-gallery-caption"></div>';
+    controls.querySelector('.inline-prev').addEventListener('click',e=>{e.stopPropagation();stepGallery(-1);});
+    controls.querySelector('.inline-next').addEventListener('click',e=>{e.stopPropagation();stepGallery(1);});
+    // Prevent clicking an arrow from starting the Works rearrangement gesture.
+    controls.querySelectorAll('button').forEach(b=>b.addEventListener('pointerdown',e=>e.stopPropagation()));
+    inlinePicture.appendChild(controls);
+  }
+  renderGallery();
+  requestAnimationFrame(()=>controls.classList.add('visible'));
+}
+function stopGalleryVideo() {
+  if (!inlinePicture) return;
+  const v=inlinePicture.querySelector('.inline-gallery-video');
+  if (v) {v.pause();v.removeAttribute('src');v.load();v.style.display='none';}
+}
+function renderGallery() {
+  if (!inlinePicture || !activeGallery.length) return;
+  const item=activeGallery[activeIndex];
+  const img=inlinePicture.querySelector('img');
+  let video=inlinePicture.querySelector('.inline-gallery-video');
+  if (!video) {video=document.createElement('video');video.className='inline-gallery-video';video.controls=true;video.playsInline=true;inlinePicture.insertBefore(video,inlinePicture.querySelector('.inline-gallery-controls'));}
+  stopGalleryVideo();
+  if (item.type==='video') {
+    if(img) img.style.display='none';
+    video.src=item.src;video.style.display='block';video.load();
+  } else {
+    if(img) {img.src=item.src;img.alt=item.caption||'Work view';img.style.display='block';}
+  }
+  const controls=inlinePicture.querySelector('.inline-gallery-controls');
+  controls.querySelector('.inline-gallery-caption').textContent=item.caption||'';
+  controls.querySelectorAll('button').forEach(b=>b.style.display=activeGallery.length>1?'block':'none');
+}
+function stepGallery(direction) {
+  if (!activeGallery.length) return;
+  activeIndex=(activeIndex+direction+activeGallery.length)%activeGallery.length;
+  renderGallery();
+}
+function closeGallery() {
+  if (!galleryWorkId || !inlinePicture) return;
+  stopGalleryVideo();
+  const work=ELEMENTS.find(e=>e.id===galleryWorkId);
+  const img=inlinePicture.querySelector('img');
+  if(img && work) {img.src=work.src;img.alt=work.caption||'';img.style.display='block';}
+  const controls=inlinePicture.querySelector('.inline-gallery-controls');
+  if(controls) controls.classList.remove('visible');
+  galleryWorkId=null;inlinePicture=null;activeGallery=[];
+}
+// GALLERY INTERACTION — wheel/pinch scales the entire gallery, not just the image.
+// Zooming out below 100% closes the gallery and returns to Works.
+gallery.addEventListener("wheel", e => {
+  if (!gallery.classList.contains("open")) return;
+  e.preventDefault();
+  zoomGalleryAt(galleryZoom * Math.exp(-e.deltaY * .002), e.clientX, e.clientY);
+}, {passive:false});
+const galleryPointers = new Map();
+let galleryGesture = null;
+function galleryDistance(a,b) { return Math.hypot(a.x-b.x,a.y-b.y); }
+function galleryCenter(a,b) { return {x:(a.x+b.x)/2,y:(a.y+b.y)/2}; }
+gallery.addEventListener("pointerdown", e => {
+  if (!gallery.classList.contains("open") || e.target.closest("button,video")) return;
+  galleryPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  gallery.setPointerCapture(e.pointerId);
+  if (galleryPointers.size === 1) {
+    galleryGesture = {x:e.clientX,y:e.clientY, ox:galleryOffsetX,oy:galleryOffsetY};
+  } else if (galleryPointers.size === 2) {
+    const [a,b]=[...galleryPointers.values()];
+    galleryGesture={distance:galleryDistance(a,b), zoom:galleryZoom,
+      center:galleryCenter(a,b), ox:galleryOffsetX, oy:galleryOffsetY};
+  }
+});
+gallery.addEventListener("pointermove", e => {
+  if (!galleryPointers.has(e.pointerId)) return;
+  galleryPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if (galleryPointers.size === 2 && galleryGesture?.distance) {
+    const [a,b]=[...galleryPointers.values()];
+    const center=galleryCenter(a,b);
+    const next=galleryGesture.zoom * galleryDistance(a,b)/Math.max(1,galleryGesture.distance);
+    if (next < 1) {galleryPointers.clear();closeGallery();return;}
+    const ratio=boundedZoom(next)/galleryGesture.zoom;
+    galleryZoom=boundedZoom(next);
+    galleryOffsetX=center.x-(galleryGesture.center.x-galleryGesture.ox)*ratio;
+    galleryOffsetY=center.y-(galleryGesture.center.y-galleryGesture.oy)*ratio;
+    updateGalleryZoom();
+  } else if (galleryPointers.size === 1 && galleryGesture && !galleryGesture.distance) {
+    galleryOffsetX=galleryGesture.ox+e.clientX-galleryGesture.x;
+    galleryOffsetY=galleryGesture.oy+e.clientY-galleryGesture.y;
+    updateGalleryZoom();
+  }
+});
+for (const eventName of ["pointerup","pointercancel","lostpointercapture"]) gallery.addEventListener(eventName,e=>{
+  galleryPointers.delete(e.pointerId);
+  if (!galleryPointers.size) galleryGesture=null;
+  else if (galleryPointers.size===1) {
+    const [p]=[...galleryPointers.values()];
+    galleryGesture={x:p.x,y:p.y,ox:galleryOffsetX,oy:galleryOffsetY};
+  }
+});
+document.querySelector("#prev").addEventListener("click", () => stepGallery(-1));
+document.querySelector("#next").addEventListener("click", () => stepGallery(1));
+document.querySelector("#close").addEventListener("click", closeGallery);
+
+/* ==================== EDIT 4 — NOTES PDFs ================================
+   Add a date in the list below, for example: "2026.10.11"
+   Upload the matching file to: pdfs/2026.10.11.pdf
+
+   The date becomes a clickable PDF link. Dates appear in list order.
+   Positions are automatic; you don't need to enter x or y.
+   The PDF filename must exactly match its date plus .pdf.
+======================================================================== */
+const NOTES = [
+  "2026.2.24", "2026.3.12", "2026.3.20", "2026.4.22",
+  "2026.5.2", "2026.5.4", "2026.5.6", "2026.5.7",
+  "2026.5.8", "2026.5.9", "2026.5.12", "2026.5.13",
+  "2026.5.16", "2026.5.16_1", "2026.5.16_2", "2026.6.3",
+  "2026.6.8", "2026.6.13"
+].map((label, i) => ({ id:"note-"+i, label, href:"pdfs/"+label+".pdf", x:800, y:125+i*38 }));
+function originalNotePosition(note, i) {
+  return isMobile() ? {x:mobileWidth()/2, y:105+i*29} : {x:note.x,y:note.y};
+}
+const notesViewport = document.querySelector("#notes-viewport");
+const notesWorld = document.querySelector("#notes-world");
+let notesScale=1, notesPanX=0, notesPanY=0, notesDrag=null, notesMoved=false;
+let notesViewInitialized=false;
+let notesNavInitialized=false;
+const notesNavOriginal = {};
+function applyNotesView() { notesWorld.style.transform=`translate(${notesPanX}px, ${notesPanY}px) scale(${notesScale})`; }
+function createNote(note) {
+  const el=document.createElement("div"); el.className="note-link"; el.dataset.id=note.id;
+  const a=document.createElement("a"); a.href=note.href; a.target="_blank"; a.rel="noopener"; a.textContent=note.label;
+  // Prevent the browser from dragging a PDF URL as a ghost/grey link box.
+  a.draggable = false;
+  a.addEventListener("dragstart", e => e.preventDefault());
+  a.addEventListener("click", e => { if(notesMoved) { e.preventDefault(); e.stopPropagation(); } });
+  el.appendChild(a); notesWorld.appendChild(el); setPosition(el,...Object.values(originalNotePosition(note, NOTES.indexOf(note))));
+  el.addEventListener("pointerdown",e=>{
+    if(e.button!==0 || pinch || touchPoints.size>1)return;
+    notesDrag={kind:"item",el,startX:e.clientX,startY:e.clientY,x:Number(el.dataset.x),y:Number(el.dataset.y)};
+    notesMoved=false;
+    // Do not capture the pointer: doing so redirects the click away from the PDF link.
+    // The window pointermove listener already handles dragging outside the link.
+    e.stopPropagation();
+  });
+}
+NOTES.forEach(createNote); applyNotesView();
+// Navigation on Notes is draggable, but a simple click still follows its action.
+// Disabling native link dragging avoids the grey URL preview.
+for (const id of ["notes-name", "notes-switch"]) {
+  const el = document.getElementById(id);
+  el.addEventListener("dragstart", e => e.preventDefault());
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || pinch || touchPoints.size > 1) return;
+    notesDrag = {kind:"item", el, startX:e.clientX, startY:e.clientY,
+      x:Number(el.dataset.x), y:Number(el.dataset.y)};
+    notesMoved = false;
+    e.stopPropagation();
+  });
+  // Suppress click after moving, but never interfere with an ordinary click.
+  el.addEventListener("click", e => {
+    if (notesMoved) { e.preventDefault(); e.stopImmediatePropagation(); }
+  }, true);
+}
+
+notesViewport.addEventListener("pointerdown",e=>{
+  if(e.button!==0 || pinch || touchPoints.size>1 || e.target.closest(".note-link") || e.target.closest("#notes-name, #notes-switch"))return;
+  notesDrag={kind:"pan",startX:e.clientX,startY:e.clientY,x:notesPanX,y:notesPanY};
+  notesMoved=false; notesViewport.classList.add("panning"); notesViewport.setPointerCapture(e.pointerId);
+});
+window.addEventListener("pointermove",e=>{
+  if(!notesDrag || pinch)return;
+  const dx=e.clientX-notesDrag.startX,dy=e.clientY-notesDrag.startY;
+  if(Math.abs(dx)+Math.abs(dy)>3) notesMoved=true;
+  if(notesDrag.kind==="pan") {notesPanX=notesDrag.x+dx;notesPanY=notesDrag.y+dy;applyNotesView();}
+  else setPosition(notesDrag.el,notesDrag.x+dx/notesScale,notesDrag.y+dy/notesScale);
+});
+window.addEventListener("pointerup",()=>{
+  if(!notesDrag)return;
+  const wasMoved=notesMoved;
+  notesDrag=null;notesViewport.classList.remove("panning");
+  if(wasMoved)setTimeout(()=>notesMoved=false,100);else notesMoved=false;
+});
+notesViewport.addEventListener("wheel",e=>{
+  e.preventDefault();
+  const old=notesScale, next=boundedZoom(old*(e.deltaY<0?1.08:.92));
+  const r=notesViewport.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+  notesPanX=x-(x-notesPanX)*next/old;notesPanY=y-(y-notesPanY)*next/old;
+  notesScale=next;applyNotesView();
+},{passive:false});
+/* EDIT — NOTES PAGE: responsive fit of all PDF titles */
+function fitNotesPage() {
+  const vw=notesViewport.clientWidth, vh=notesViewport.clientHeight;
+  if (!vw || !vh) return;
+  // Place PDF links in one column, with fixed spacing in world coordinates.
+  const step=42, x=800, top=70;
+  NOTES.forEach((note,i)=>{
+    const el=notesWorld.querySelector(`[data-id="${note.id}"]`);
+    if(el) setPosition(el,x,top+i*step);
+  });
+  // Navigation positions in the same coordinate system, independent of Works.
+  const name=document.getElementById("notes-name");
+  const works=document.getElementById("notes-switch");
+  setPosition(name,100,top);
+  setPosition(works,1210,top+Math.max(0,NOTES.length-1)*step*.28);
+  // Fit the full vertical PDF list and the horizontal composition to viewport.
+  const bottom=top+Math.max(0,NOTES.length-1)*step+35;
+  const minX=100,maxX=1350,minY=top,maxY=bottom;
+  const marginX= Math.min(42,vw*.04), marginY=Math.min(32,vh*.04);
+  // Center the PDF column itself, rather than the bounding box of all tags.
+  // Leave sufficient room on either side for the name and Works navigation.
+  const pdfCenterX=x+50;
+  notesScale=Math.min(
+    (vw/2-marginX)/(pdfCenterX-minX),
+    (vw/2-marginX)/(maxX-pdfCenterX),
+    (vh-2*marginY)/(maxY===minX?1:bottom-minY),
+    1.35
+  );
+  // NOTES PAGE — HORIZONTAL POSITION (EDIT HERE)
+  // Positive value shifts the PDF column and Works tag right together.
+  // Keep this proportional to viewport width for different screen sizes.
+  const NOTES_RIGHT_SHIFT = Math.min(70, vw * 0.04);
+  notesPanX=vw/2-pdfCenterX*notesScale+NOTES_RIGHT_SHIFT;
+  notesPanY=vh/2-((minY+maxY)/2)*notesScale;
+  applyNotesView();
+}
+function resetNotes() { fitNotesPage(); }
+function isNotesActive(){return document.querySelector("#notes-panel").classList.contains("open") && !document.querySelector("#me-panel").classList.contains("open");}
+function syncPageControls(){document.body.classList.toggle("notes-active",isNotesActive());document.querySelector("#search-input").value="";filterCurrentPage("");}
+function filterCurrentPage(query){
+  query=query.trim().toLowerCase();
+  if(isNotesActive())notesWorld.querySelectorAll(".note-link").forEach(el=>{const note=NOTES.find(n=>n.id===el.dataset.id);el.style.opacity=!query||note.label.toLowerCase().includes(query)?"1":"0.18";});
+  else world.querySelectorAll(".item").forEach(el=>{const item=ELEMENTS.find(n=>n.id===el.dataset.id);const text=`${item?.caption||""} ${item?.text||""} ${item?.id||""}`.toLowerCase();el.style.opacity=!query||text.includes(query)?"1":"0.18";});
+}
+
+function showMe() {
+  const panel=document.querySelector("#me-panel");
+  panel.classList.add("open");
+  panel.scrollTop=0;
+  syncPageControls();
+}
+function showNotes() {
+  const panel=document.querySelector("#notes-panel");
+  panel.classList.add("open");
+  panel.scrollTop=0;
+  syncPageControls();
+  fitNotesPage();
+}
+document.querySelector("#notes-switch").addEventListener("click", () => { if (notesMoved) return; document.querySelector("#notes-panel").classList.remove("open");syncPageControls(); });
+document.querySelector("#notes-name").addEventListener("click", e => { e.preventDefault(); if (!notesMoved) showMe(); });
+document.querySelector("#me-to-works").addEventListener("click", () => {
+  document.querySelector("#me-panel").classList.remove("open");
+  document.querySelector("#notes-panel").classList.remove("open");
+  syncPageControls();
+});
+document.querySelector("#me-to-notes").addEventListener("click", () => {
+  document.querySelector("#me-panel").classList.remove("open");
+  if (!document.querySelector("#notes-panel").classList.contains("open")) showNotes();
+  syncPageControls();
+});
+document.querySelector("#reset-view").addEventListener("click", () => {
+  if(isNotesActive()){resetNotes();return;}
+  // Restore the original coordinates from ELEMENTS for every canvas item.
+  ELEMENTS.forEach(item => {
+    const el = [...world.querySelectorAll(".item")].find(node => node.dataset.id === item.id);
+    if (el) { const pos=originalWorkPosition(item); setPosition(el,pos.x,pos.y); }
+  });
+  // Frame the complete original composition automatically.
+  fitWorksComposition();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeGallery(); document.querySelector("#notes-panel").classList.remove("open"); document.querySelector("#me-panel").classList.remove("open");syncPageControls(); }
+  if (galleryWorkId && (e.key === "ArrowRight" || e.key === "ArrowLeft") && !["INPUT", "TEXTAREA"].includes(document.activeElement.tagName)) stepGallery(e.key === "ArrowRight" ? 1 : -1);
+});
+// SAVE BUTTON — export the complete layout, independent of the current zoom.
+document.querySelector("#save-layout").addEventListener("click", async () => {
+  // Local file:// pages give images opaque origins in Chromium/Edge.
+  // No canvas export code can bypass this browser security restriction.
+  if (location.protocol === "file:") {
+    alert("To save the complete layout, open this website through http://localhost or your published GitHub Pages URL, not by double-clicking the HTML file.\n\nOn Mac: open Terminal in your website folder, run: python3 -m http.server 8000\nThen visit: http://localhost:8000/ in Edge.");
+    return;
+  }
+  if (typeof html2canvas !== "function") {
+    alert("The screenshot library could not load. Please check your internet connection.");
+    return;
+  }
+  const notes = isNotesActive();
+  const source = notes ? notesWorld : world;
+  const exportWorld = source.cloneNode(true);
+  const background = getComputedStyle(document.body).backgroundColor;
+  const width = source.offsetWidth;
+  const height = source.offsetHeight;
+  // IMPORTANT: html2canvas cannot reliably render elements positioned tens of
+  // thousands of pixels outside the viewport. Keep the export at (0,0), behind
+  // the visible page, rather than at a large negative left coordinate.
+  const holder = document.createElement("div");
+  holder.style.cssText = `position:fixed;left:0;top:0;width:${width}px;height:${height}px;z-index:-1;pointer-events:none;overflow:hidden;background:${background};`;
+  exportWorld.style.cssText = `position:relative;left:0;top:0;width:${width}px;height:${height}px;transform:none;transform-origin:0 0;overflow:visible;background:${background};`;
+  holder.appendChild(exportWorld);
+  document.body.appendChild(holder);
+  const button = document.querySelector("#save-layout");
+  button.style.pointerEvents = "none";
+  try {
+    await Promise.all([...exportWorld.querySelectorAll("img")].map(img => {
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.addEventListener("load", resolve, {once:true});
+        img.addEventListener("error", resolve, {once:true});
+      });
+    }));
+    const canvas = await html2canvas(holder, {
+      backgroundColor: background,
+      scale: 1.5,
+      width, height,
+      windowWidth: Math.max(innerWidth, width),
+      windowHeight: Math.max(innerHeight, height),
+      scrollX: 0, scrollY: 0,
+      useCORS: true,
+      logging: false
+    });
+    if (!canvas.width || !canvas.height) throw new Error("Empty screenshot canvas");
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("Unable to encode PNG (possibly cross-origin images)");
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = notes ? "notes-canvas-layout.png" : "entire-canvas-layout.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (error) {
+    console.error("Full-layout screenshot failed:", error);
+    alert(error && error.name === "SecurityError" ? "An image is blocked from screenshot export by browser cross-origin security. Check that the site and artwork files are loaded from the same http://localhost or HTTPS origin, then retry." : "Unable to save the full layout. Open the browser console for details.");
+  } finally {
+    holder.remove();
+    button.style.pointerEvents = "";
+  }
+});
+
+// Search the currently visible canvas without changing positions.
+document.querySelector("#search-input").addEventListener("input", event => filterCurrentPage(event.target.value));
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </body>
 </html>
