@@ -183,7 +183,7 @@
 
 <form id="search" role="search" onsubmit="return false;">
   <label for="search-input" aria-label="Search">⌕</label>
-  <input id="search-input" type="search" aria-label="Search works and notes" autocomplete="off" spellcheck="false">
+  <input id="search-input" type="search" aria-label="Search artwork captions and notes" autocomplete="off" spellcheck="false">
   <span id="search-status" aria-live="polite"></span>
 </form>
 <div id="controls">
@@ -976,9 +976,22 @@ function resetNotes() { fitNotesPage(); }
 function isNotesActive(){return document.querySelector("#notes-panel").classList.contains("open") && !document.querySelector("#me-panel").classList.contains("open");}
 function syncPageControls(){document.body.classList.toggle("notes-active",isNotesActive());document.querySelector("#search-input").value="";filterCurrentPage("");}
 function filterCurrentPage(query){
-  query=query.trim().toLowerCase();
-  if(isNotesActive())notesWorld.querySelectorAll(".note-link").forEach(el=>{const note=NOTES.find(n=>n.id===el.dataset.id);el.style.opacity=!query||note.label.toLowerCase().includes(query)?"1":"0.18";});
-  else world.querySelectorAll(".item").forEach(el=>{const item=ELEMENTS.find(n=>n.id===el.dataset.id);const text=`${item?.caption||""} ${item?.text||""} ${item?.id||""}`.toLowerCase();el.style.opacity=!query||text.includes(query)?"1":"0.18";});
+  const terms=query.trim().toLocaleLowerCase().split(/\s+/u).filter(Boolean);
+  const matches=text=>terms.every(term=>String(text||"").toLocaleLowerCase().includes(term));
+  if(isNotesActive()) {
+    notesWorld.querySelectorAll(".note-link").forEach(el=>{
+      const note=NOTES.find(n=>n.id===el.dataset.id);
+      el.style.opacity=!terms.length||matches(note?.label)?"1":"0.18";
+    });
+  } else {
+    world.querySelectorAll(".item").forEach(el=>{
+      const item=ELEMENTS.find(n=>n.id===el.dataset.id);
+      // Include the primary caption and all captions in this work's gallery.
+      const captions=[item?.caption,...(WORK_GALLERIES[item?.id]||[]).map(media=>media.caption)].filter(Boolean).join(" ");
+      const hit=item?.type==="image" && matches(captions);
+      el.style.opacity=!terms.length||hit?"1":"0.18";
+    });
+  }
 }
 
 function showMe() {
@@ -1102,7 +1115,7 @@ document.querySelector("#save-layout").addEventListener("click", async () => {
   }
 });
 
-// Search the currently visible canvas without changing positions.
+// Search artwork captions (including gallery media), without changing positions.
 document.querySelector("#search-input").addEventListener("input", event => filterCurrentPage(event.target.value));
 
 </script>
