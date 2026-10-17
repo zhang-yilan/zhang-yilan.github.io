@@ -1004,16 +1004,32 @@ document.querySelector("#save-layout").addEventListener("click", async () => {
   }
   const notes = isNotesActive();
   const source = notes ? notesWorld : world;
-  const exportWorld = source.cloneNode(true);
+  // Measure actual movable objects, not the visible browser window or the
+  // nominal 1600 x 1000 world (artwork may extend beyond either).
+  const objects = [...source.children].filter(el =>
+    el.matches('.item, .note-link, #notes-name, #notes-switch'));
+  if (!objects.length) return;
+  const margin = 45;
+  const bounds = objects.reduce((b, el) => {
+    const x = parseFloat(el.style.left) || 0;
+    const y = parseFloat(el.style.top) || 0;
+    // Note links are centered on their x coordinate via translateX(-50%).
+    const left = x - (el.classList.contains('note-link') ? el.offsetWidth / 2 : 0);
+    b.minX = Math.min(b.minX, left);
+    b.minY = Math.min(b.minY, y);
+    b.maxX = Math.max(b.maxX, left + el.offsetWidth);
+    b.maxY = Math.max(b.maxY, y + el.offsetHeight);
+    return b;
+  }, {minX:Infinity, minY:Infinity, maxX:-Infinity, maxY:-Infinity});
+  const width = Math.ceil(bounds.maxX - bounds.minX + margin * 2);
+  const height = Math.ceil(bounds.maxY - bounds.minY + margin * 2);
   const background = getComputedStyle(document.body).backgroundColor;
-  const width = source.offsetWidth;
-  const height = source.offsetHeight;
-  // IMPORTANT: html2canvas cannot reliably render elements positioned tens of
-  // thousands of pixels outside the viewport. Keep the export at (0,0), behind
-  // the visible page, rather than at a large negative left coordinate.
-  const holder = document.createElement("div");
-  holder.style.cssText = `position:fixed;left:0;top:0;width:${width}px;height:${height}px;z-index:-1;pointer-events:none;overflow:hidden;background:${background};`;
-  exportWorld.style.cssText = `position:relative;left:0;top:0;width:${width}px;height:${height}px;transform:none;transform-origin:0 0;overflow:visible;background:${background};`;
+  const exportWorld = source.cloneNode(true);
+  // Keep the capture in normal document coordinates: a fixed-position holder
+  // is clipped to the viewport by html2canvas on some browsers.
+  const holder = document.createElement('div');
+  holder.style.cssText = `position:absolute;left:0;top:0;width:${width}px;height:${height}px;pointer-events:none;z-index:-1;overflow:hidden;background:${background};`;
+  exportWorld.style.cssText = `position:relative;left:${margin-bounds.minX}px;top:${margin-bounds.minY}px;width:${source.offsetWidth}px;height:${source.offsetHeight}px;transform:none;transform-origin:0 0;overflow:visible;background:transparent;`;
   holder.appendChild(exportWorld);
   document.body.appendChild(holder);
   const button = document.querySelector("#save-layout");
