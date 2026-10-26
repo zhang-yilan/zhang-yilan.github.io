@@ -122,6 +122,15 @@
     .video-bar button { padding:5px; }
     .picture .video-shell .inline-gallery-video { -webkit-playsinline: true; }
   }
+  /* Phone: keep the custom transport bar between the video and its caption. */
+  @media (max-width:600px) {
+    .picture .video-shell .video-bar {
+      bottom:calc(-1 * 42px * var(--inline-ui-inverse, 1));
+      padding:5px 6px;
+      opacity:1;
+      pointer-events:auto;
+    }
+  }
   #gallery { display:none; position:fixed; inset:0; z-index:20; background:var(--paper); }
   #gallery.open { display:block; overflow:hidden; touch-action:none; }
   /* EDIT — Entire gallery zooms and pans as one canvas. */
@@ -446,7 +455,9 @@ function zoomGalleryAt(next, clientX, clientY) {
   updateGalleryZoom();
 }
 function galleryThreshold() {
-  return Math.min(window.innerWidth * .78, window.innerHeight * .73) * GALLERY_TRIGGER_FRACTION;
+  // On phones, reveal the caption before the enlarged image touches the screen edges.
+  const fraction = window.matchMedia('(max-width:600px)').matches ? 0.68 : GALLERY_TRIGGER_FRACTION;
+  return Math.min(window.innerWidth * .78, window.innerHeight * .73) * fraction;
 }
 // Cache image elements rather than querying the DOM during every zoom step.
 let galleryTriggerPictures=[];
@@ -643,7 +654,9 @@ function updateInlineGalleryUI() {
     const captionHeight = caption.getBoundingClientRect().height;
     inlinePicture.style.setProperty('--inline-caption-height', `${captionHeight / zoom}px`);
     inlinePicture.style.setProperty('--inline-mobile-arrow-gap', `${20 / zoom}px`);
-    inlinePicture.style.setProperty('--inline-caption-gap', `${20 / zoom}px`);
+    // Reserve space for the transport bar below videos; image captions stay close.
+    const isVideo = !!inlinePicture.querySelector('.video-shell[style*="display: block"]');
+    inlinePicture.style.setProperty('--inline-caption-gap', `${(isVideo ? 57 : 12) / zoom}px`);
   } else {
     inlinePicture.style.setProperty('--inline-caption-gap', `${4 / zoom}px`);
   }
