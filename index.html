@@ -15,10 +15,10 @@
   #world { position:absolute; left:0; top:0; width:1600px; height:1000px; transform-origin:0 0; }
   .item { position:absolute; user-select:none; }
   .item.movable { cursor:move; }
-  .picture { width:200px; height:150px; border:0; padding:0; background:transparent; display:flex; align-items:center; justify-content:center; }
+  .picture { width:200px; height:calc(200px * 2 / 3); border:0; padding:0; background:transparent; display:flex; align-items:center; justify-content:center; }
   .picture img { width:100%; height:100%; object-fit:contain; display:block; }
   /* Sharp zoom: give only visible, enlarged photos more rendering pixels.
-     Their frame and positions remain exactly 200 x 150. */
+     Their frame and positions remain exactly 200 x 133.33 (3:2). */
   .picture img.high-res-render {
     position:absolute; left:0; top:0;
     width:calc(100% * var(--photo-detail, 1));
@@ -57,12 +57,14 @@
 
   /* INLINE GALLERY — EDIT HERE: controls live in the Works canvas, not a popup. */
   .picture { position:relative; overflow:visible; }
+  /* Keep the magnified caption in front of neighboring pictures. */
+  .item.inline-gallery-active { z-index:5; }
   .inline-gallery-controls { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity 220ms ease; }
   .inline-gallery-controls.visible { opacity:1; }
   .inline-gallery-controls button { position:absolute; top:50%; transform:translateY(-50%); border:0; background:var(--paper); padding:5px 7px; font:inherit; font-size:17px; cursor:pointer; pointer-events:auto; }
   .inline-gallery-controls .inline-prev { left:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(-100%, -50%) scale(var(--inline-ui-inverse, 1)); transform-origin:right center; }
   .inline-gallery-controls .inline-next { right:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(100%, -50%) scale(var(--inline-ui-inverse, 1)); transform-origin:left center; }
-  .inline-gallery-caption { position:absolute; top:calc(100% + var(--inline-caption-gap, 12px)); left:50%; transform:translateX(-50%) scale(var(--inline-ui-inverse, 1)); transform-origin:center top; width:max-content; max-width: min(440px, 85vw); text-align:center; white-space:pre-wrap; font-size:12px; line-height:18px; pointer-events:none; }
+  .inline-gallery-caption { position:absolute; top:calc(100% + var(--inline-caption-gap, 12px)); left:50%; transform:translateX(-50%) scale(var(--inline-ui-inverse, 1)); transform-origin:center top; width:calc(100% / var(--inline-ui-inverse, 1)); max-width:none; text-align:center; white-space:pre-wrap; font-size:12px; line-height:18px; pointer-events:none; }
 
   /* On phones, keep gallery arrows together below the caption. */
   @media (max-width:600px) {
@@ -84,6 +86,42 @@
     }
   }
   .picture .inline-gallery-video { display:none; width:100%; height:100%; object-fit:contain; }
+
+  /* Video controls remain a fixed on-screen size when the Works canvas zooms. */
+  .picture .video-shell { position:absolute; inset:0; display:none; }
+  .picture .video-shell .inline-gallery-video { display:block; width:100%; height:100%; }
+  /* Keep mobile video playback inline and retain the custom player UI. */
+  .picture .video-shell .inline-gallery-video::-webkit-media-controls { display:none !important; }
+  .picture .video-shell .inline-gallery-video::-webkit-media-controls-enclosure { display:none !important; }
+  .video-bar {
+    position:absolute; bottom:0; left:0;
+    width:calc(100% / var(--inline-ui-inverse, 1));
+    display:flex; align-items:center; gap:9px;
+    padding:12px 12px 7px;
+    color:#000; background:transparent;
+    opacity:0; pointer-events:none; transition:opacity .18s ease;
+    font:12px/1 'Courier New',monospace;
+    transform:scale(var(--inline-ui-inverse, 1));
+    transform-origin:left bottom;
+  }
+  .video-shell:hover .video-bar, .video-shell:focus-within .video-bar, .video-shell.show-controls .video-bar { opacity:1; pointer-events:auto; }
+  .video-bar button { border:0; background:none; color:inherit; padding:2px; font:inherit; font-size:16px; cursor:pointer; line-height:1; flex:none; }
+  .video-bar input[type=range] { appearance:none; -webkit-appearance:none; min-width:0; height:16px; margin:0; background:transparent; cursor:pointer; }
+  .video-bar input[type=range]::-webkit-slider-runnable-track { height:2px; border-radius:2px; background:#000; }
+  .video-bar input[type=range]::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; width:7px; height:7px; border-radius:50%; background:#000; margin-top:-2.5px; border:0; }
+  .video-bar input[type=range]::-moz-range-track { height:2px; border-radius:2px; background:#000; }
+  .video-bar input[type=range]::-moz-range-thumb { width:7px; height:7px; border:0; border-radius:50%; background:#000; }
+  .video-bar .video-play svg { display:block; width:15px; height:15px; fill:none; stroke:currentColor; stroke-width:2.4; stroke-linecap:butt; }
+  .video-bar .video-mute svg { display:block; width:17px; height:17px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .video-bar .video-mute.is-muted .sound-waves { display:none; }
+  .video-bar .video-mute.is-muted svg { opacity:.65; }
+  .video-bar .video-seek { flex:1; }
+  .video-bar .video-volume { width:45px !important; flex:none; }
+  @media (hover:none) {
+    .video-bar { padding:12px 9px 7px; opacity:1; pointer-events:auto; }
+    .video-bar button { padding:5px; }
+    .picture .video-shell .inline-gallery-video { -webkit-playsinline: true; }
+  }
   #gallery { display:none; position:fixed; inset:0; z-index:20; background:var(--paper); }
   #gallery.open { display:block; overflow:hidden; touch-action:none; }
   /* EDIT — Entire gallery zooms and pans as one canvas. */
@@ -287,7 +325,7 @@ const ELEMENTS = [
 { id:"202621_day", type:"image", src:"images/202621_day.jpg", caption:"202621_day", x:454, y:249 },
   { id:"202619", type:"image", src:"images/202619.jpg", caption:"202619", x:1006, y:538 },
   { id:"202620", type:"image", src:"images/202620.jpg", caption:"202620", x:1245, y:586 },
-  { id:"2026_install_202616_17_18", type:"image", src:"images/2026_install_202616_17_18.jpg", caption:"2026_install_202616_17_18", x:-137, y:740 },
+  { id:"2026_install_202616_17_1103", type:"image", src:"images/2026_install_202616_17_1103.jpg", caption:"2026_install_202616_17_1103", x:-137, y:740 },
   { id:"202616", type:"image", src:"images/202616.jpg", caption:"202616", x:-404, y:752 },
   { id:"20260306", type:"image", src:"images/20260306.jpg", caption:"20260306", x:-857, y:1173 },
   { id:"202615", type:"image", src:"images/202615.jpg", caption:"202615", x:1007, y:1221 },
@@ -303,9 +341,9 @@ const ELEMENTS = [
   { id:"202612", type:"image", src:"images/202612.jpg", caption:"202612", x:90, y:2120 },
   { id:"202610", type:"image", src:"images/202610.jpg", caption:"202610", x:2463, y:2520 },
   { id:"20261101", type:"image", src:"images/20261101.jpg", caption:"20261101", x:328, y:2656 },
-  { id:"202618", type:"image", src:"images/202618.jpg", caption:"202618", x:-219, y:535 },
+  { id:"20261103", type:"image", src:"images/20261103.jpg", caption:"20261103", x:-219, y:535 },
   { id:"202617", type:"image", src:"images/202617.jpg", caption:"202617", x:-31, y:931 },
-  { id:"202612_--_detail", type:"image", src:"images/202612_舌头_detail.jpg", caption:"202612_--_detail", x:90, y:2266 },
+  { id:"202612_舌头_detail", type:"image", src:"images/202612_舌头_detail.jpg", caption:"202612_舌头_detail", x:90, y:2266 },
   { id:"202612_--", type:"image", src:"images/202612_楔子.jpg", caption:"202612_--", x:90, y:1974 },
   { id:"202605", type:"image", src:"images/202605.jpg", caption:"202605", x:1211, y:2648 },
   { id:"202606", type:"image", src:"images/202606.jpg", caption:"202606", x:1111, y:2155 },
@@ -486,20 +524,101 @@ const WORK_GALLERIES = {
   "202620": [
     { type:"image", src:"images/202620.jpg", caption:"纸、水彩、铜丝。2026。\npaper, watercolor, copper wire. 2026." }
   ],
-  "2026_install_202616_17_18": [
-    { type:"image", src:"images/2026_install_202616_17_18.jpg", caption:"" },
-    { type:"image", src:"images/202616.jpg", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.35 cm。2026.\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." },
-    { type:"image", src:"images/202618.jpg", caption:"纸、大头针。2026.\npaper, pins. 2026." },
-    { type:"image", src:"images/202617.jpg", caption:"纸、墨汁。2026.\npaper, ink. 2026." }
+  "2026_install_202616_17_1103": [
+    { type:"image", src:"images/2026_install_202616_17_1103.jpg", caption:"" },
+    { type:"image", src:"images/202616.jpg", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.4 cm。2026。\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." },
+    { type:"image", src:"images/20261103.jpg", caption:"纸、大头针。2026。\npaper, pins. 2026." },
+    { type:"image", src:"images/202617.jpg", caption:"纸、墨汁。2026。\npaper, ink. 2026." }
   ],
   "202616": [
-    { type:"image", src:"images/202616.jpg", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.35 cm。2026.\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." },
-    { type:"video", src:"videos/202616_94mb.mp4", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.35 cm。2026.\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." }
+    { type:"image", src:"images/202616.jpg", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.4 cm。2026。\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." },
+    { type:"video", src:"videos/202616_94mb.mp4", caption:"纸、酪蛋白颜料、蜡笔头、磁铁、大头针。12.7 cm X 12.7 cm X 6.4 cm。2026。\npaper, casein, crayon head, magnets, pins. 5\" X 5\" X 2 1/2\". 2026." }
   ],
   "20260306": [
     { type:"image", src:"images/20260306.jpg", caption:"木头、帆布、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, canvas, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, distemper, wax, playdoh, tape. 2026." },
     { type:"image", src:"images/20260306_side.jpg", caption:"木头、帆布、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, canvas, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, distemper, wax, playdoh, tape. 2026." },
     { type:"image", src:"images/20260306_other side.jpg", caption:"木头、帆布、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, canvas, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, distemper, wax, playdoh, tape. 2026." }
+  ],
+  "202615": [
+    { type:"image", src:"images/202615.jpg", caption:"洞中纸上酪蛋白颜料。6.4 cm X 10.2 cm X 8.9 cm。2026。\ncasein on paper in holes. 2 1/2\" X 4\" X 3 1/2\". 2026." },
+    { type:"video", src:"videos/202615_99mb.mp4", caption:"洞中纸上酪蛋白颜料。6.4 cm X 10.2 cm X 8.9 cm。2026。\ncasein on paper in holes. 2 1/2\" X 4\" X 3 1/2\". 2026." }
+  ],
+  "202614": [
+    { type:"image", src:"images/202614.jpg", caption:"纸、酪蛋白颜料、大头针。11.4 cm X 31.1 cm X 3.8 cm。2026。\npaper, casein, pins. 4 1/2\" X 12 1/4\" X 1 1/2\". 2026." }
+  ],
+  "202613": [
+    { type:"image", src:"images/202613.jpg", caption:"纸、酪蛋白颜料、大头针。11.7 cm X 30.5 cm X 1.6 cm。2026。\npaper, casein, pins. 4 5/8\" X 12\" X 5/8\". 2026." }
+  ],
+  "202607_side_right": [
+    { type:"image", src:"images/202607_side_right.jpg", caption:"纸、核桃墨水、钉子。3.8 cm X 11.4 cm X 8.9 cm。2026。\npaper, walnut ink, nails. 1 1/2\" X 4 1/2\" X 3 1/2\". 2026." },
+    { type:"video", src:"videos/202607_95mb.mp4", caption:"纸、核桃墨水、钉子。3.8 cm X 11.4 cm X 8.9 cm。2026。\npaper, walnut ink, nails. 1 1/2\" X 4 1/2\" X 3 1/2\". 2026." }
+  ],
+  "20260305_detail": [
+    { type:"image", src:"images/20260305_detail.jpg", caption:"木头、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, rabbit skin glue, wax, playdoh, tape. 2026." },
+    { type:"image", src:"images/20260305.jpg", caption:"木头、亚麻布、纸、铅笔、木炭、银尖笔、色粉笔、蜡笔、墨汁、丙烯、油画颜料、酪蛋白颜料、兔皮胶、蜡、橡皮泥、胶带。2026。\nwood, linen, paper, graphite, charcoal, silverpoint, pastel, crayon, ink, acrylic, oil, casein, rabbit skin glue, wax, playdoh, tape. 2026." }
+  ],
+  "20260302_install": [
+    { type:"image", src:"images/20260302_install.jpg", caption:"" },
+    { type:"image", src:"images/20260302.jpg", caption:"上面：木头、纸、蜡笔、蜡；下面：木头、帆布、亚麻布、铅笔、彩色铅笔、银尖笔、蜡笔、丙烯、兔皮胶、订书钉。228.6 cm X 33.0 cm X 5.1 cm；上面：13.0 cm X 6.7 cm X 1.9 cm；下面：35.6 cm X 33.0 cm X 5.1 cm。2026。\nupper piece: wood, paper, crayon, wax; lower cluster: wood, canvas, linen, graphite, colored pencil, silverpoint, crayon, acrylic, rabbit skin glue, staple. 90\" X 13\" X 2\"; upper piece: 5 1/8\" X 2 5/8\" X 3/4\"; lower cluster: 14\" X 13\" X 2\". 2026." },
+    { type:"image", src:"images/20260302_detail_side_right.jpg", caption:"木头、帆布、亚麻布、铅笔、彩色铅笔、银尖笔、蜡笔、丙烯、兔皮胶、订书钉。35.6 cm X 33.0 cm X 5.1 cm。2026。\nwood, canvas, linen, graphite, colored pencil, silverpoint, crayon, acrylic, rabbit skin glue, wax, staple. 14\" X 13\" X 2\". 2026." },
+    { type:"image", src:"images/202606.jpg", caption:"纸上核桃墨水、木板上酪蛋白颜料、钉子。9.5 cm X 13.3 cm X 1.9 cm。2026。\nwalnut ink on paper, casein on wood panel, nails. 3 3/4\" X 5 1/4\" X 3/4\". 2026." },
+    { type:"image", src:"images/202605.jpg", caption:"粘土、石膏、纸、墨汁、订书钉。14.6 cm X 18.4 cm X 1.9 cm。2026。\nclay, plaster, paper, ink, staples. 5 3/4\" X 7 1/4\" X 3/4\". 2026." }
+  ],
+  "20260301": [
+    { type:"image", src:"images/20260301.jpg", caption:"木头、帆布、亚麻布、纸、铅笔、彩色铅笔、银尖笔、色粉笔、蜡笔、丙烯、油画颜料、兔皮胶、蜡、订书钉。35.6 cm X 61.0 cm X 5.1 cm。2026。\nwood, canvas, linen, paper, graphite, colored pencil, silverpoint, pastel, crayon, acrylic, oil, rabbit skin glue, wax, staple. 14\" X 24\" X 2\". 2026." }
+  ],
+  "20260303": [
+    { type:"image", src:"images/20260303.jpg", caption:"木头、亚麻布、纸、铅笔、彩色铅笔、木炭、色粉笔、蜡笔、丙烯、油画颜料、蜡、胶带、钉子 。25.4 cm X 45.7 cm X 5.1 cm; left piece: 7.3 cm X 4.1 cm X 0.6 cm; right cluster: 21.6 cm X 36.2 cm X 5.1 cm。2026。\nwood, linen, paper, graphite, colored pencil, charcoal, pastel, crayon, acrylic, oil, wax, tape, nails. 10\" X 18\" X 2\"; left piece: 2 7/8\" X 1 5/8\" X 1/4\"; right cluster: 8 1/2\" X 14 1/4\" X 2\". 2026." }
+  ],
+  "20260906-20260920_install": [
+    { type:"image", src:"images/20260906-20260920_install.jpg", caption:"" },
+    { type:"image", src:"images/20260901.jpg", caption:"纸、水彩。12.7 cm X 12.7 cm。2026。\npaper, watercolor. 5\" X 5\". 2026." },
+    { type:"image", src:"images/20260902.jpg", caption:"纸、水彩、墨水、蜡笔。14.9 cm X 9.8 cm。2026。\npaper, watercolor, ink, crayon. 5 7/8\" X 3 7/8\". 2026." },
+    { type:"image", src:"images/20260903.jpg", caption:"纸、水彩。8.9 cm X 13.7 cm。2026。\npaper, watercolor. 3 1/2\" X 5 3/8\". 2026." },
+    { type:"image", src:"images/20260904.jpg", caption:"纸、水彩。14.6 cm X 8.6 cm。2026。\npaper, watercolor. 5 3/4\" X 3 3/8\". 2026." },
+    { type:"image", src:"images/20260905.jpg", caption:"纸、水彩。13.7 cm X 11.4 cm。2026。\npaper, watercolor. 5 3/8\" X 4 1/2\". 2026." },
+    { type:"image", src:"images/20260906.jpg", caption:"纸、水彩。12.4 cm X 11.1 cm。2026。\npaper, watercolor. 4 7/8\" X 4 3/8\". 2026." },
+    { type:"image", src:"images/20260907.jpg", caption:"纸、水彩。13.0 cm X 12.1 cm。2026。\npaper, watercolor. 5 1/8\" X 4 3/4\". 2026." },
+    { type:"image", src:"images/20260908.jpg", caption:"纸、水彩。14.0 cm X 10.2 cm。2026。\npaper, watercolor. 5 1/2\" X 4\". 2026." },
+    { type:"image", src:"images/20260909.jpg", caption:"纸、水彩。7.6 cm X 13.7 cm。2026。\npaper, watercolor. 3\" X 5 3/8\". 2026." },
+    { type:"image", src:"images/20260910.jpg", caption:"纸、水彩。10.8 cm X 13.3 cm。2026。\npaper, watercolor. 4 1/4\" X 5 1/4\". 2026." },
+    { type:"image", src:"images/20260911.jpg", caption:"纸、水彩。14.6 cm X 11.1 cm。2026。\npaper, watercolor. 5 3/4\" X 4 3/8\". 2026." },
+    { type:"image", src:"images/20260912.jpg", caption:"纸、水彩。11.7 cm X 10.8 cm。2026。\npaper, watercolor. 4 5/8\" X 4 1/4\". 2026." },
+    { type:"image", src:"images/20260913.jpg", caption:"纸、水彩。8.6 cm X 14.9 cm。2026。\npaper, watercolor. 3 3/8\" X 5 7/8\". 2026." },
+    { type:"image", src:"images/20260914.jpg", caption:"纸、水彩。10.8 cm X 12.1 cm。2026。\npaper, watercolor. 4 1/4\" X 4 3/4\". 2026." },
+    { type:"image", src:"images/20260915.jpg", caption:"纸、水彩。10.8 cm X 13.3 cm。2026。\npaper, watercolor. 4 1/4\" X 5 1/4\". 2026." },
+    { type:"image", src:"images/20260916.jpg", caption:"纸、水彩。12.4 cm X 13.0 cm。2026。\npaper, watercolor. 4 7/8\" X 5 1/8\". 2026." },
+    { type:"image", src:"images/20260917.jpg", caption:"纸、水彩。12.1 cm X 12.4 cm。2026。\npaper, watercolor. 4 3/4\" X 4 7/8\". 2026." },
+    { type:"image", src:"images/20260918.jpg", caption:"纸、水彩。7.6 cm X 8.6 cm。2026。\npaper, watercolor. 3\" X 3 3/8\". 2026." },
+    { type:"image", src:"images/20260919.jpg", caption:"纸、水彩。11.7 cm X 13.3 cm。2026。\npaper, watercolor. 4 5/8\" X 5 1/4\". 2026." },
+    { type:"image", src:"images/20260920.jpg", caption:"纸、水彩。12.1 cm X 13.7 cm。2026。\npaper, watercolor. 4 3/4\" X 5 3/8\". 2026." },
+    { type:"image", src:"images/20260921.jpg", caption:"纸、水彩。10.5 cm X 14.3 cm。2026。\npaper, watercolor. 4 1/8\" X 5 5/8\". 2026." },
+    { type:"image", src:"images/20260922.jpg", caption:"纸、水彩。12.7 cm X 12.7 cm。2026。\npaper, watercolor. 5\" X 5\". 2026." },
+    { type:"image", src:"images/20260923.jpg", caption:"纸、水彩、蜡笔。12.4 cm X 12.4 cm。2026。\npaper, watercolor, crayon. 4 7/8\" X 4 7/8\". 2026." },
+  ],
+  "20261102": [
+    { type:"image", src:"images/20261102.jpg", caption:"纸、大头针。7.6 cm X 15.2 cm X 15.2 cm。2026。\npaper, pins. 3\" X 6\" X 6\". 2026." }
+  ],
+  "202612": [
+    { type:"image", src:"images/202612.jpg", caption:"粘土、橡皮泥、铜。墙上：5.7 cm X 7.0 cm X 7.0 cm；地上：1.3 cm X 7.6 cm X 10.2 cm。2026。\nclay, playdoh, copper. on the wall: 2 1/4\" X 2 3/4\" X 2 3/4\"; on the floor: 1/2\" X 3\" X 4\". 2026." },
+    { type:"image", src:"images/202612_楔子.jpg", caption:"粘土。每个5.7 cm X 7.0 cm X 7.0 cm。2026。\nclay. each 2 1/4\" X 2 3/4\" X 2 3/4\". 2026." },
+    { type:"image", src:"images/202612_舌头_detail.jpg", caption:"橡皮泥、铜。1.3 cm X 7.6 cm X 10.2 cm。2026。\nplaydoh, copper. 1/2\" X 3\" X 4\". 2026." }
+  ],
+  "202610": [
+    { type:"image", src:"images/202610.jpg", caption:"木头、油画颜料、彩色铅笔。12.7 cm X 49.5 cm X 40.6 cm。2026。\nwood, oil, colored pencil. 5\" X 19 1/2\" X 16\". 2026." },
+    { type:"image", src:"images/202610_detail.jpg", caption:"木头、油画颜料、彩色铅笔。12.7 cm X 49.5 cm X 40.6 cm。2026。\nwood, oil, colored pencil. 5\" X 19 1/2\" X 16\". 2026." }
+  ],
+  "20261101": [
+    { type:"image", src:"images/20261101.jpg", caption:"纸。12.7 cm X 22.9 cm X 22.9 cm。2026。\npaper. 5\" X 9\" X 9\". 2026." }
+  ],
+  "20261103": [
+    { type:"image", src:"images/20261103.jpg", caption:"纸、大头针。2026。\npaper, pins. 2026." }
+  ],
+  "202617": [
+    { type:"image", src:"images/202617.jpg", caption:"纸、墨汁。2026。\npaper, ink. 2026." }
+  ],
+  "202612_舌头_detail": [
+    { type:"image", src:"images/202612_舌头_detail.jpg", caption:"橡皮泥、铜。1.3 cm X 7.6 cm X 10.2 cm。2026。\nplaydoh, copper. 1/2\" X 3\" X 4\". 2026." }
   ],
 };
 
@@ -734,6 +853,28 @@ world.addEventListener("click", e => {
   }
 }, true);
 
+// Video controls stay local to the video and do not interfere with canvas dragging.
+function makeVideoShell(picture) {
+  const shell=document.createElement('div');shell.className='video-shell';
+  const v=document.createElement('video');v.className='inline-gallery-video';v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');v.controls=false;v.disablePictureInPicture=true;v.setAttribute('disablepictureinpicture','');v.preload='metadata';v.autoplay=false;v.muted=false;
+  shell.innerHTML='<div class="video-bar"><button type="button" class="video-play" aria-label="Play or pause">▶</button><input class="video-seek" type="range" min="0" max="1000" value="0" aria-label="Video position"><button type="button" class="video-mute" aria-label="Mute"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4Z"/><path class="sound-waves" d="M16 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/></svg></button><input class="video-volume" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume"><button type="button" class="video-fullscreen" aria-label="Fullscreen">⛶</button></div>';
+  shell.prepend(v);
+  const bar=shell.querySelector('.video-bar'),play=shell.querySelector('.video-play'),seek=shell.querySelector('.video-seek'),mute=shell.querySelector('.video-mute'),volume=shell.querySelector('.video-volume');
+  const update=()=>{play.innerHTML=v.paused?'▶':'<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 3V17M14 3V17"/></svg>';seek.value=Number.isFinite(v.duration)&&v.duration>0?Math.round(v.currentTime/v.duration*1000):0;mute.classList.toggle('is-muted',v.muted||v.volume===0);};
+  ['play','pause','timeupdate','loadedmetadata','volumechange','ended'].forEach(name=>v.addEventListener(name,update));
+  play.addEventListener('click',()=>{if(v.paused)v.play().catch(()=>{});else v.pause();});
+  seek.addEventListener('input',()=>{if(Number.isFinite(v.duration))v.currentTime=v.duration*Number(seek.value)/1000;});
+  mute.addEventListener('click',()=>{v.muted=!v.muted;});
+  volume.addEventListener('input',()=>{v.volume=Number(volume.value);v.muted=v.volume===0;});
+  shell.querySelector('.video-fullscreen').addEventListener('click',()=>{if(document.fullscreenElement)document.exitFullscreen?.();else if(shell.requestFullscreen)shell.requestFullscreen().catch(()=>{v.webkitEnterFullscreen?.();});else v.webkitEnterFullscreen?.();});
+  shell.addEventListener('pointerdown',e=>e.stopPropagation());
+  shell.addEventListener('click',e=>{e.stopPropagation();if(e.target===v){if(v.paused)v.play().catch(()=>{});else v.pause();shell.classList.add('show-controls');}});
+  shell.addEventListener('pointerleave',()=>shell.classList.remove('show-controls'));
+  let hideTimer;
+  shell.addEventListener('pointerup',()=>{if(matchMedia('(hover:none)').matches){clearTimeout(hideTimer);hideTimer=setTimeout(()=>{if(!shell.contains(document.activeElement))shell.classList.remove('show-controls');},3500);}});
+  picture.insertBefore(shell,picture.querySelector('.inline-gallery-controls'));
+  return shell;
+}
 // INLINE GALLERY — image browsing inside the existing picture frame.
 function openGallery(workId, fromZoom=false) {
   if (galleryWorkId===workId) return;
@@ -744,6 +885,7 @@ function openGallery(workId, fromZoom=false) {
   activeGallery=WORK_GALLERIES[workId] || [{type:"image",src:work.src,caption:work.caption}];
   activeIndex=0;galleryWorkId=workId;
   inlinePicture=el.querySelector('.picture');
+  el.classList.add('inline-gallery-active');
   scheduleInlineGalleryUI();
   let controls=inlinePicture.querySelector('.inline-gallery-controls');
   if (!controls) {
@@ -761,25 +903,31 @@ function openGallery(workId, fromZoom=false) {
 function stopGalleryVideo() {
   if (!inlinePicture) return;
   const v=inlinePicture.querySelector('.inline-gallery-video');
-  if (v) {v.pause();v.removeAttribute('src');v.load();v.style.display='none';}
+  if (v) {v.pause();v.closest('.video-shell').style.display='none';}
 }
 function renderGallery() {
   if (!inlinePicture || !activeGallery.length) return;
   const item=activeGallery[activeIndex];
   const img=inlinePicture.querySelector('img');
   let video=inlinePicture.querySelector('.inline-gallery-video');
-  if (!video) {video=document.createElement('video');video.className='inline-gallery-video';video.controls=true;video.playsInline=true;inlinePicture.insertBefore(video,inlinePicture.querySelector('.inline-gallery-controls'));}
+  if (!video) video=makeVideoShell(inlinePicture).querySelector('video');
   stopGalleryVideo();
   if (item.type==='video') {
     if(img) img.style.display='none';
-    video.src=item.src;video.style.display='block';video.load();
+    if (video.getAttribute('src') !== item.src) video.src=item.src;
+    video.controls=false; video.playsInline=true; video.setAttribute('playsinline',''); video.setAttribute('webkit-playsinline','');
+    video.closest('.video-shell').style.display='block';
+    video.muted=false;
+    video.play().catch(()=>{ /* Some browsers require a tap before playing with sound. */ });
   } else {
     if(img) {img.src=item.src;img.alt=item.caption||'Work view';img.style.display='block';}
   }
   const controls=inlinePicture.querySelector('.inline-gallery-controls');
   controls.querySelector('.inline-gallery-caption').textContent=item.caption||'';
   requestAnimationFrame(updateInlineGalleryUI);
-  controls.querySelectorAll('button').forEach(b=>b.style.display=activeGallery.length>1?'block':'none');
+  // Show navigation only when the gallery contains more than one distinct media file.
+  const hasMultipleMedia = new Set(activeGallery.map(media => media.src)).size > 1;
+  controls.querySelectorAll('.inline-prev, .inline-next').forEach(b => { b.style.display = hasMultipleMedia ? 'block' : 'none'; });
 }
 function stepGallery(direction) {
   if (!activeGallery.length) return;
@@ -794,6 +942,7 @@ function closeGallery() {
   if(img && work) {img.src=work.src;img.alt=work.caption||'';img.style.display='block';}
   const controls=inlinePicture.querySelector('.inline-gallery-controls');
   if(controls) controls.classList.remove('visible');
+  inlinePicture.closest('.item')?.classList.remove('inline-gallery-active');
   galleryWorkId=null;inlinePicture=null;activeGallery=[];
 }
 // GALLERY INTERACTION — wheel/pinch scales the entire gallery, not just the image.
