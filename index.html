@@ -222,6 +222,16 @@
     #me-panel .bio-line { white-space:normal; }
     #me-panel .bio-line span { display:inline; }
   }
+
+/* Show the pointing-hand cursor only over the actual comma ink. */
+#viewport.comma-ink-hover:not(.panning) { cursor:pointer; }
+/* Hidden comma entrance: intentionally outside the opening screen. */
+#comma-entrance { position:absolute; z-index:8; font:18px/1 "Courier New",monospace; color:var(--ink); text-decoration:none!important; cursor:pointer; user-select:none; padding:5px 9px; white-space:pre; }
+#comma-entrance:hover, #comma-entrance:focus, #comma-entrance:active { text-decoration:none!important; outline:none; }
+/* The SVG glyph itself receives pointer events; its transparent surroundings do not. */
+#comma-entrance { pointer-events:none; cursor:inherit; width:18px; height:18px; display:block; }
+#comma-entrance svg { display:block; width:18px; height:18px; overflow:visible; pointer-events:none; }
+#comma-entrance text { pointer-events:none; }
 </style>
 </head>
 <body>
@@ -750,7 +760,7 @@ const WORK_GALLERIES = {
     { type:"image", src:"images/202508.jpg", caption:"木头、铜。15.2 cm X 12.7 cm X 5.1 cm。2026。\nwood, copper. 6\" X 5\" X 2\". 2026." }
   ],
   "202508": [
-    { type:"image", src:"images/202509.jpg", caption:"木头、铜。15.2 cm X 12.7 cm X 5.1 cm。2026。\nwood, copper. 6\" X 5\" X 2\". 2026." },
+    { type:"image", src:"images/202508.jpg", caption:"木头、铜。15.2 cm X 12.7 cm X 5.1 cm。2026。\nwood, copper. 6\" X 5\" X 2\". 2026." },
     { type:"image", src:"images/202508_side_left.jpg", caption:"木头、铜。15.2 cm X 12.7 cm X 5.1 cm。2026。\nwood, copper. 6\" X 5\" X 2\". 2026." }
   ],
   "202504": [
@@ -953,6 +963,78 @@ function createElement(item) {
 ELEMENTS.forEach(createElement);
 galleryTriggerPictures=[...world.querySelectorAll('.item[data-type="image"]')];
 fitWorksComposition();
+
+// COMMA ENTRANCE — random location immediately outside the initial visible frame.
+// Placement uses the actual opening zoom/pan, so it works on desktop and phone.
+const commaEntrance = document.createElement('a');
+commaEntrance.id = 'comma-entrance';
+commaEntrance.href = 'comma.html';
+commaEntrance.target = '_blank';
+commaEntrance.rel = 'noopener';
+// SVG text uses painted-glyph hit testing, unlike an HTML link's rectangular box.
+// This leaves every transparent pixel available for ordinary canvas dragging.
+commaEntrance.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><text x="0" y="15" fill="currentColor" font-family="Courier New, monospace" font-size="18">,</text></svg>';
+commaEntrance.setAttribute('aria-label','Open the comma canvas in a new tab');
+world.appendChild(commaEntrance);
+function placeCommaEntrance() {
+  const margin = 8 + Math.random() * 24; // close to the opening edge on phone and desktop
+  const edge = Math.floor(Math.random() * 4);
+  const w = window.innerWidth, h = window.innerHeight;
+  const sx = edge === 0 ? -margin - 18*scale : edge === 1 ? w + margin : 0.12*w + Math.random()*.76*w;
+  const sy = edge === 2 ? -margin - 18*scale : edge === 3 ? h + margin : 0.12*h + Math.random()*.76*h;
+  commaEntrance.style.fontSize = `18px`; // same canvas font size as the name tag
+  commaEntrance.style.padding = `0`;
+  commaEntrance.style.left = `${(sx-panX)/scale}px`;
+  commaEntrance.style.top = `${(sy-panY)/scale}px`;
+}
+placeCommaEntrance();
+// Use a real alpha-mask of the comma for click detection. SVG/anchor hit
+// regions vary by browser (notably Safari), so neither receives pointer events.
+// All pointer events pass through to the canvas, allowing ordinary dragging.
+const commaHitCanvas = document.createElement('canvas');
+commaHitCanvas.width = 180;
+commaHitCanvas.height = 180;
+const commaHitCtx = commaHitCanvas.getContext('2d', {willReadFrequently:true});
+commaHitCtx.font = '180px "Courier New", monospace';
+commaHitCtx.textBaseline = 'alphabetic';
+commaHitCtx.fillStyle = '#000';
+commaHitCtx.fillText(',', 0, 150);
+const commaHitPixels = commaHitCtx.getImageData(0,0,180,180).data;
+function isOnCommaInk(clientX,clientY) {
+  const svg = commaEntrance.querySelector('svg');
+  const matrix = svg.getScreenCTM();
+  if (!matrix) return false;
+  // Convert the screen click to the SVG's original 18x18 coordinates,
+  // regardless of the homepage zoom and pan.
+  const p = new DOMPoint(clientX,clientY).matrixTransform(matrix.inverse());
+  const x = Math.floor(p.x * 10), y = Math.floor(p.y * 10);
+  if (x<0 || x>=180 || y<0 || y>=180) return false;
+  return commaHitPixels[(y*180+x)*4+3] > 110;
+}
+let commaPointerStart = null;
+viewport.addEventListener('pointerdown', e => {
+  commaPointerStart = e.button === 0 && isOnCommaInk(e.clientX,e.clientY)
+    ? {id:e.pointerId,x:e.clientX,y:e.clientY} : null;
+}, true);
+viewport.addEventListener('pointerup', e => {
+  const start = commaPointerStart;
+  commaPointerStart = null;
+  if (start && start.id === e.pointerId &&
+      Math.hypot(e.clientX-start.x,e.clientY-start.y) < 5 &&
+      isOnCommaInk(e.clientX,e.clientY) && Date.now() >= suppressPinchClickUntil) {
+    window.open('comma.html','_blank','noopener');
+  }
+}, true);
+viewport.addEventListener('pointercancel', () => {commaPointerStart=null},true);
+viewport.addEventListener('pointermove', e => {
+  // Preserve normal image cursors and the grabbing cursor while panning.
+  const overInk = e.pointerType === 'mouse' && !drag && !pinch &&
+    !e.target.closest('.item') && isOnCommaInk(e.clientX,e.clientY);
+  viewport.classList.toggle('comma-ink-hover', !!overInk);
+});
+viewport.addEventListener('pointerleave', () => viewport.classList.remove('comma-ink-hover'));
+viewport.addEventListener('pointerdown', () => viewport.classList.remove('comma-ink-hover'), true);
+
 
 viewport.addEventListener("pointerdown", e => {
   if (e.button !== 0 || pinch || touchPoints.size > 1 || e.target.closest(".item")) return;
@@ -1407,7 +1489,50 @@ document.querySelector("#save-layout").addEventListener("click", async () => {
 });
 
 // Search artwork captions (including gallery media), without changing positions.
-document.querySelector("#search-input").addEventListener("input", event => filterCurrentPage(event.target.value));
+// COMMA SEARCH — typing "," / "comma" / "逗号" / "逗號" jumps to
+// the comma already hidden in the Works canvas; visitors click it to enter comma.html.
+let commaSearchTimer = 0;
+const commaSearchTerms = new Set([",", "，", "comma", "逗号", "逗號"]);
+function isCommaSearch(value) {
+  return commaSearchTerms.has(value.trim().toLocaleLowerCase());
+}
+function startCommaSearchZoom() {
+  if (isNotesActive() ||
+      document.querySelector("#me-panel").classList.contains("open")) return;
+  document.querySelector("#search-input").blur();
+  // Jump directly to the actual comma on the Works canvas.
+  // The comma's visible ink is much smaller than its 18px line box.
+  const rect = commaEntrance.getBoundingClientRect();
+  const commaX = (rect.left + rect.width * .5 - panX) / scale;
+  const commaY = (rect.top + rect.height * .78 - panY) / scale;
+  // Aim for a large comma without cropping its ink on narrow phone screens.
+  const targetScale = boundedZoom(Math.min(
+    innerWidth * .82 / (18 * .58),
+    innerHeight * .78 / (18 * .48)
+  ));
+  scale = targetScale;
+  panX = innerWidth / 2 - commaX * scale;
+  panY = innerHeight / 2 - commaY * scale;
+  applyView();
+}
+const commaSearchInput = document.querySelector("#search-input");
+commaSearchInput.addEventListener("input", event => {
+  clearTimeout(commaSearchTimer);
+  const value = event.target.value;
+  if (isCommaSearch(value) && !isNotesActive() &&
+      !document.querySelector("#me-panel").classList.contains("open")) {
+    commaSearchTimer = setTimeout(startCommaSearchZoom, 500);
+  } else {
+    filterCurrentPage(value);
+  }
+});
+document.querySelector("#search").addEventListener("submit", event => {
+  event.preventDefault();
+  if (isCommaSearch(commaSearchInput.value)) {
+    clearTimeout(commaSearchTimer);
+    startCommaSearchZoom();
+  }
+});
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
