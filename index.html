@@ -1499,21 +1499,30 @@ function isCommaSearch(value) {
 function startCommaSearchZoom() {
   if (isNotesActive() ||
       document.querySelector("#me-panel").classList.contains("open")) return;
-  document.querySelector("#search-input").blur();
-  // Jump directly to the actual comma on the Works canvas.
-  // The comma's visible ink is much smaller than its 18px line box.
-  const rect = commaEntrance.getBoundingClientRect();
-  const commaX = (rect.left + rect.width * .5 - panX) / scale;
-  const commaY = (rect.top + rect.height * .78 - panY) / scale;
-  // Aim for a large comma without cropping its ink on narrow phone screens.
-  const targetScale = boundedZoom(Math.min(
-    innerWidth * .82 / (18 * .58),
-    innerHeight * .78 / (18 * .48)
-  ));
-  scale = targetScale;
-  panX = innerWidth / 2 - commaX * scale;
-  panY = innerHeight / 2 - commaY * scale;
-  applyView();
+  const searchField = document.querySelector("#search-input");
+  searchField.blur();
+  // Use the comma's original world coordinates, not its current on-screen
+  // bounding rectangle. This also works when the phone initially fits the
+  // whole composition and the comma is tiny or outside the visible screen.
+  const commaX = parseFloat(commaEntrance.style.left) + 8;
+  const commaY = parseFloat(commaEntrance.style.top) + 12;
+  function revealComma() {
+    const w = viewport.clientWidth, h = viewport.clientHeight;
+    // Fit the visible comma ink comfortably on either desktop or phone.
+    const targetScale = boundedZoom(Math.min(w * .88 / 11, h * .82 / 12));
+    scale = targetScale;
+    panX = w / 2 - commaX * scale;
+    panY = h / 2 - commaY * scale;
+    applyView();
+  }
+  // Mobile browsers resize their visual viewport as the search keyboard
+  // closes. Position only after that resize, otherwise the comma can be
+  // stranded offscreen. No changes to the normal opening layout.
+  revealComma();
+  if (window.matchMedia('(max-width:600px)').matches) {
+    setTimeout(revealComma, 350);
+    setTimeout(revealComma, 750);
+  }
 }
 const commaSearchInput = document.querySelector("#search-input");
 commaSearchInput.addEventListener("input", event => {
