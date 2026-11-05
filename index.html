@@ -809,18 +809,6 @@ function applyView() {
 // Measure the actual rendered items rather than assuming the 1600 x 1000 world
 // contains them. The margin is measured in screen pixels.
 function fitWorksComposition() {
-  // On narrow phones, fitting the entire desktop-sized composition makes
-  // every picture and label microscopic. Start near the first artwork instead.
-  if (isMobile()) {
-    const first = ELEMENTS.find(item => item.type === "image");
-    if (first) {
-      scale = Math.min(1, Math.max(0.6, (viewport.clientWidth - 36) / 200));
-      panX = 18 - first.x * scale;
-      panY = viewport.clientHeight * 0.32 - first.y * scale;
-      applyView();
-      return;
-    }
-  }
   const items = [...world.querySelectorAll(".item")];
   if (!items.length) return;
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
