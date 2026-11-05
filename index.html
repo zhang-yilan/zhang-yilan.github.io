@@ -1006,14 +1006,18 @@ function isOnCommaInk(clientX,clientY) {
   if (!matrix) return false;
   // Convert the screen click to the SVG's original 18x18 coordinates,
   // regardless of the homepage zoom and pan.
-  const p = new DOMPoint(clientX,clientY).matrixTransform(matrix.inverse());
-  const x = Math.floor(p.x * 10), y = Math.floor(p.y * 10);
+  // Screen rectangle gives the same coordinate mapping for this translated,
+  // uniformly scaled SVG, without relying on DOMPoint on mobile browsers.
+  const r = svg.getBoundingClientRect();
+  if (!r.width || !r.height) return false;
+  const x = Math.floor((clientX-r.left) / r.width * 180);
+  const y = Math.floor((clientY-r.top) / r.height * 180);
   if (x<0 || x>=180 || y<0 || y>=180) return false;
   return commaHitPixels[(y*180+x)*4+3] > 110;
 }
 let commaPointerStart = null;
 viewport.addEventListener('pointerdown', e => {
-  commaPointerStart = e.button === 0 && isOnCommaInk(e.clientX,e.clientY)
+  commaPointerStart = e.pointerType !== "touch" && e.button === 0 && isOnCommaInk(e.clientX,e.clientY)
     ? {id:e.pointerId,x:e.clientX,y:e.clientY} : null;
 }, true);
 viewport.addEventListener('pointerup', e => {
@@ -1026,6 +1030,33 @@ viewport.addEventListener('pointerup', e => {
   }
 }, true);
 viewport.addEventListener('pointercancel', () => {commaPointerStart=null},true);
+// Mobile: use touch events and same-tab navigation, which is reliable on
+// iOS/Android even when popup creation from pointerup is blocked.
+let commaTouchStart = null;
+viewport.addEventListener('touchstart', e => {
+  commaTouchStart = null;
+  if (e.touches.length !== 1 || Date.now() < suppressPinchClickUntil) return;
+  const t = e.touches[0];
+  if (isOnCommaInk(t.clientX,t.clientY))
+    commaTouchStart = {id:t.identifier,x:t.clientX,y:t.clientY};
+}, {capture:true,passive:true});
+viewport.addEventListener('touchmove', e => {
+  if (!commaTouchStart || e.touches.length !== 1) {commaTouchStart=null;return;}
+  const t=e.touches[0];
+  if (Math.hypot(t.clientX-commaTouchStart.x,t.clientY-commaTouchStart.y)>12)
+    commaTouchStart=null;
+}, {capture:true,passive:true});
+viewport.addEventListener('touchend', e => {
+  const start=commaTouchStart;
+  commaTouchStart=null;
+  if (!start || e.touches.length || Date.now()<suppressPinchClickUntil) return;
+  const t=[...e.changedTouches].find(t=>t.identifier===start.id);
+  if (!t || Math.hypot(t.clientX-start.x,t.clientY-start.y)>12 ||
+      !isOnCommaInk(t.clientX,t.clientY)) return;
+  e.preventDefault();
+  window.location.assign(commaEntrance.href);
+}, {capture:true,passive:false});
+viewport.addEventListener('touchcancel',()=>{commaTouchStart=null},{capture:true,passive:true});
 viewport.addEventListener('pointermove', e => {
   // Preserve normal image cursors and the grabbing cursor while panning.
   const overInk = e.pointerType === 'mouse' && !drag && !pinch &&
@@ -1526,14 +1557,20 @@ function startCommaSearchZoom() {
 }
 const commaSearchInput = document.querySelector("#search-input");
 commaSearchInput.addEventListener("input", event => {
+  if (event.isComposing) return;
   clearTimeout(commaSearchTimer);
   const value = event.target.value;
   if (isCommaSearch(value) && !isNotesActive() &&
       !document.querySelector("#me-panel").classList.contains("open")) {
-    commaSearchTimer = setTimeout(startCommaSearchZoom, 500);
+    commaSearchTimer = setTimeout(startCommaSearchZoom, 650);
   } else {
     filterCurrentPage(value);
   }
+});
+commaSearchInput.addEventListener("compositionend", () => {
+  clearTimeout(commaSearchTimer);
+  if (isCommaSearch(commaSearchInput.value))
+    commaSearchTimer = setTimeout(startCommaSearchZoom, 650);
 });
 document.querySelector("#search").addEventListener("submit", event => {
   event.preventDefault();
