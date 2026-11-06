@@ -66,6 +66,13 @@
   .inline-gallery-controls .inline-next { right:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(100%, -50%) scale(var(--inline-ui-inverse, 1)); transform-origin:left center; }
   .inline-gallery-caption { position:absolute; top:calc(100% + var(--inline-caption-gap, 12px)); left:50%; transform:translateX(-50%) scale(var(--inline-ui-inverse, 1)); transform-origin:center top; width:calc(100% / var(--inline-ui-inverse, 1)); max-width:none; text-align:center; white-space:pre-wrap; font-size:12px; line-height:18px; pointer-events:none; }
 
+  /* iPad only: use the same embedded Chinese Songti glyphs as phones.
+     Do not change the laptop or phone layouts. */
+  @media (min-width:601px) and (max-width:1199px) and (pointer:coarse) {
+    body { font-family:"Courier New", "Portfolio Songti", "Embedded Mobile Songti", "Songti TC", "Songti SC", serif; }
+  }
+  /* Avoid rasterizing caption text into a permanently low-resolution layer. */
+  .inline-gallery-caption { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
   /* On phones, keep gallery arrows together below the caption. */
   @media (max-width:600px) {
     .inline-gallery-controls .inline-prev,
@@ -469,7 +476,7 @@ function zoomGalleryAt(next, clientX, clientY) {
 }
 function galleryThreshold() {
   // On phones, reveal the caption before the enlarged image touches the screen edges.
-  const fraction = window.matchMedia('(max-width:600px)').matches ? 0.68 : GALLERY_TRIGGER_FRACTION;
+  const fraction = window.matchMedia('(max-width:600px)').matches ? 0.68 : (window.matchMedia('(min-width:601px) and (max-width:1199px) and (pointer:coarse)').matches ? 0.68 : GALLERY_TRIGGER_FRACTION);
   return Math.min(window.innerWidth * .78, window.innerHeight * .73) * fraction;
 }
 // Cache image elements rather than querying the DOM during every zoom step.
@@ -495,7 +502,7 @@ function checkGalleryZoomTrigger() {
     const visible=r.right>0 && r.bottom>0 && r.left<innerWidth && r.top<innerHeight;
     const img=picture.querySelector('img');
     if (img) {
-      const detail=visible && scale>1.25 ? (scale>3 ? 4 : 2) : 1;
+      const detail=visible && scale>1.25 ? (scale>6 ? 8 : scale>3 ? 4 : 2) : 1;
       if (Number(img.dataset.detail || 1)!==detail) {
         img.dataset.detail=detail;
         img.style.setProperty('--photo-detail',detail);
@@ -1523,6 +1530,16 @@ document.querySelector("#save-layout").addEventListener("click", async () => {
 // COMMA SEARCH — typing "," / "comma" / "逗号" / "逗號" jumps to
 // the comma already hidden in the Works canvas; visitors click it to enter comma.html.
 let commaSearchTimer = 0;
+let commaReturnView = null;
+let commaRecenterTimers = [];
+function restoreViewAfterCommaSearch() {
+  commaRecenterTimers.forEach(clearTimeout);
+  commaRecenterTimers = [];
+  if (!commaReturnView) return;
+  ({scale, panX, panY} = commaReturnView);
+  commaReturnView = null;
+  applyView();
+}
 const commaSearchTerms = new Set([",", "，", "comma", "逗号", "逗號"]);
 function isCommaSearch(value) {
   return commaSearchTerms.has(value.trim().toLocaleLowerCase());
@@ -1530,6 +1547,8 @@ function isCommaSearch(value) {
 function startCommaSearchZoom() {
   if (isNotesActive() ||
       document.querySelector("#me-panel").classList.contains("open")) return;
+  if (!isCommaSearch(document.querySelector("#search-input").value)) return;
+  if (!commaReturnView) commaReturnView = {scale, panX, panY};
   const searchField = document.querySelector("#search-input");
   searchField.blur();
   // Use the comma's original world coordinates, not its current on-screen
@@ -1551,8 +1570,10 @@ function startCommaSearchZoom() {
   // stranded offscreen. No changes to the normal opening layout.
   revealComma();
   if (window.matchMedia('(max-width:600px)').matches) {
-    setTimeout(revealComma, 350);
-    setTimeout(revealComma, 750);
+    commaRecenterTimers.forEach(clearTimeout);
+    commaRecenterTimers = [350, 750].map(delay => setTimeout(() => {
+      if (isCommaSearch(searchField.value) && commaReturnView) revealComma();
+    }, delay));
   }
 }
 const commaSearchInput = document.querySelector("#search-input");
@@ -1564,6 +1585,7 @@ commaSearchInput.addEventListener("input", event => {
       !document.querySelector("#me-panel").classList.contains("open")) {
     commaSearchTimer = setTimeout(startCommaSearchZoom, 650);
   } else {
+    restoreViewAfterCommaSearch();
     filterCurrentPage(value);
   }
 });
@@ -1571,6 +1593,10 @@ commaSearchInput.addEventListener("compositionend", () => {
   clearTimeout(commaSearchTimer);
   if (isCommaSearch(commaSearchInput.value))
     commaSearchTimer = setTimeout(startCommaSearchZoom, 650);
+  else {
+    restoreViewAfterCommaSearch();
+    filterCurrentPage(commaSearchInput.value);
+  }
 });
 document.querySelector("#search").addEventListener("submit", event => {
   event.preventDefault();
