@@ -73,8 +73,8 @@
   }
   /* Avoid rasterizing caption text into a permanently low-resolution layer. */
   .inline-gallery-caption { -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
-  /* On phones, keep gallery arrows together below the caption. */
-  @media (max-width:600px) {
+  /* On phones and iPads, keep gallery arrows together below the caption. */
+  @media (max-width:600px), (min-width:601px) and (max-width:1199px) and (pointer:coarse) {
     .inline-gallery-controls .inline-prev,
     .inline-gallery-controls .inline-next {
       top:calc(100% + var(--inline-caption-gap, 0px) + var(--inline-caption-height, 0px) + var(--inline-mobile-arrow-gap, 0px));
@@ -793,7 +793,7 @@ function updateInlineGalleryUI() {
   const zoom = Math.max(scale, 0.000001);
   inlinePicture.style.setProperty('--inline-ui-inverse', String(1 / zoom));
   inlinePicture.style.setProperty('--inline-arrow-gap', `${44 / zoom}px`);
-  const phone = window.matchMedia('(max-width:600px)').matches;
+  const phone = window.matchMedia('(max-width:600px)').matches || window.matchMedia('(min-width:601px) and (max-width:1199px) and (pointer:coarse)').matches;
   const caption = inlinePicture.querySelector('.inline-gallery-caption');
   if (phone && caption) {
     // The caption is inversely scaled to remain readable on screen.
