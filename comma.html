@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10"><title>,</title>
 <style>
-:root{--paper:#f7f6f2;--ink:#24231f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Courier New",monospace}#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none}#viewport.dragging{cursor:grabbing}#world{position:absolute;left:0;top:0;transform-origin:0 0;width:1px;height:1px;will-change:transform}.picture{position:absolute;user-select:none;touch-action:none;cursor:grab}.picture.dragging{cursor:grabbing}.picture img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}#comma{position:absolute;color:var(--ink);font-family:"Courier New",monospace;line-height:1;white-space:pre;text-decoration:none!important;pointer-events:none;user-select:none;touch-action:none}#comma:hover,#comma:focus,#comma:active{text-decoration:none!important;outline:none}
+:root{--paper:#f7f6f2;--ink:#24231f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Courier New",monospace}#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none}#viewport.dragging{cursor:grabbing}#viewport.comma-ink-hover:not(.dragging){cursor:pointer}#world{position:absolute;left:0;top:0;transform-origin:0 0;width:1px;height:1px;will-change:transform}.picture{position:absolute;user-select:none;touch-action:none;cursor:grab}.picture.dragging{cursor:grabbing}.picture img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}#comma{position:absolute;color:var(--ink);font-family:"Courier New",monospace;line-height:1;white-space:pre;text-decoration:none!important;pointer-events:none;user-select:none;touch-action:none}#comma:hover,#comma:focus,#comma:active{text-decoration:none!important;outline:none}
 
 #controls{position:fixed;inset:0;z-index:10;pointer-events:none}
 #controls button{position:absolute;right:3px;transform:translateY(-50%);writing-mode:vertical-rl;text-orientation:mixed;background:transparent;border:0;padding:5px 0;cursor:pointer;font:14px "Courier New",monospace;color:var(--ink);pointer-events:auto}
@@ -159,10 +159,10 @@ async function init(){
   }else{
     scale=1;panX=innerWidth/2-box.x;panY=innerHeight/2-box.y;
   }
-  // Place the hidden comma just beyond one edge of the OPENING screen.
+  // Place the hidden comma randomly well beyond the opening image, outside one screen edge.
   // Its position is in world coordinates so search, zoom, and reset still work.
   const edge=Math.floor(Math.random()*4); // top, right, bottom, left
-  const margin=24; // screen pixels outside the visible frame
+  const margin=Math.max(innerWidth,innerHeight)*(0.85+Math.random()*0.65); // farther beyond the opening view, not over the opening image
   const commaScreenWidth=SETTINGS.commaFontSize*.75*scale;
   const commaScreenHeight=SETTINGS.commaFontSize*1.2*scale;
   const along=.18+Math.random()*.64;
@@ -190,6 +190,14 @@ async function init(){
     const px=Math.floor(x*1.0),py=Math.floor(y*1.0);
     return px>=0&&py>=0&&px<200&&py<240&&pixels[(py*200+px)*4+3]>80;
   }
+  // Match the pointing cursor precisely to the clickable comma ink.
+  viewport.addEventListener('pointermove',e=>{
+    if(e.pointerType!=='mouse')return;
+    viewport.classList.toggle('comma-ink-hover',
+      !viewport.classList.contains('dragging') && onInk(e.clientX,e.clientY));
+  });
+  viewport.addEventListener('pointerleave',()=>viewport.classList.remove('comma-ink-hover'));
+  viewport.addEventListener('pointerdown',()=>viewport.classList.remove('comma-ink-hover'),true);
   let downOnInk=false,downPoint=null,ignorePointerUntil=0;
   viewport.addEventListener('pointerdown',e=>{
     if(e.button!==0)return;
