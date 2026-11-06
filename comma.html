@@ -2,7 +2,17 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10"><title>,</title>
 <style>
 :root{--paper:#f7f6f2;--ink:#24231f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Courier New",monospace}#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none}#viewport.dragging{cursor:grabbing}#world{position:absolute;left:0;top:0;transform-origin:0 0;width:1px;height:1px}.picture{position:absolute;user-select:none;touch-action:none;cursor:grab}.picture.dragging{cursor:grabbing}.picture img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}#comma{position:absolute;color:var(--ink);font-family:"Courier New",monospace;line-height:1;white-space:pre;text-decoration:none!important;pointer-events:none;user-select:none;touch-action:none}#comma:hover,#comma:focus,#comma:active{text-decoration:none!important;outline:none}
-</style></head><body><div id="viewport"><div id="world"></div></div>
+
+#controls{position:fixed;inset:0;z-index:10;pointer-events:none}
+#controls button{position:absolute;right:3px;transform:translateY(-50%);writing-mode:vertical-rl;text-orientation:mixed;background:transparent;border:0;padding:5px 0;cursor:pointer;font:14px "Courier New",monospace;color:var(--ink);pointer-events:auto}
+#reset-view{top:calc(33.333% + 12px)}
+#save-layout{top:calc(66.667% + 12px)}
+#controls button:hover{text-decoration:underline;text-underline-offset:4px}
+#search{position:fixed;bottom:13px;left:17px;z-index:10;display:flex;align-items:center;gap:8px;font:18px "Courier New",monospace}
+#search label{cursor:text}
+#search input{width:150px;border:0;outline:0;background:transparent;border-radius:0;padding:2px 0 1px;font:inherit;color:inherit;appearance:none}
+#search input::-webkit-search-cancel-button{display:none}
+</style></head><body><div id="controls"><button id="reset-view" type="button">Reset</button><button id="save-layout" type="button">Save</button></div><form id="search"><label for="search-input" aria-label="Search">⌕</label><input id="search-input" type="search" autocomplete="off" spellcheck="false" aria-label="Search"></form><div id="viewport"><div id="world"></div></div>
 <script>
 /* EDIT HERE — list the images to scatter, using paths relative to comma.html.
    Replace these examples with your own image filenames. No captions or gallery.
@@ -21,7 +31,20 @@ const IMAGES = [
   "images/comma/7.jpeg",
   "images/comma/8.jpeg",
   "images/comma/9.JPG",
-  "images/comma/10.PNG"
+  "images/comma/10.PNG",
+  "images/comma/11_1.JPG",
+  "images/comma/11_2.JPG",
+  "images/comma/11_3.JPG",
+  "images/comma/11_4.JPG",
+  "images/comma/11_5.JPG",
+  "images/comma/11_6.JPG",
+  "images/comma/11_7.JPG",
+  "images/comma/11_8.JPG",
+  "images/comma/11_9.JPG",
+  "images/comma/11_10.JPG",
+  "images/comma/11_11.JPG",
+  "images/comma/12_1.JPG",
+  "images/comma/12_2.JPG"
 ];
 /* EDIT HERE — layout and opening zoom. */
 const SETTINGS = {
@@ -126,18 +149,18 @@ async function init(){
     const px=Math.floor(x*1.0),py=Math.floor(y*1.0);
     return px>=0&&py>=0&&px<200&&py<240&&pixels[(py*200+px)*4+3]>80;
   }
-  let downOnInk=false,downPoint=null;
+  let downOnInk=false,downPoint=null,ignorePointerUntil=0;
   viewport.addEventListener('pointerdown',e=>{
     if(e.button!==0)return;
     downOnInk=onInk(e.clientX,e.clientY);
     downPoint={x:e.clientX,y:e.clientY};
   },true);
   viewport.addEventListener('pointerup',e=>{
-    if(downOnInk&&downPoint&&Math.hypot(e.clientX-downPoint.x,e.clientY-downPoint.y)<5&&onInk(e.clientX,e.clientY)){
+    if(Date.now()>ignorePointerUntil&&e.pointerType!=='touch'&&downOnInk&&downPoint&&Math.hypot(e.clientX-downPoint.x,e.clientY-downPoint.y)<5&&onInk(e.clientX,e.clientY)){
       window.open('comma.html','_blank','noopener');
     }
     downOnInk=false;
   },true);
 }
 init();
-</script></body></html>
+</script><script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script></body></html>

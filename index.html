@@ -1061,7 +1061,8 @@ viewport.addEventListener('touchend', e => {
   if (!t || Math.hypot(t.clientX-start.x,t.clientY-start.y)>12 ||
       !isOnCommaInk(t.clientX,t.clientY)) return;
   e.preventDefault();
-  window.location.assign(commaEntrance.href);
+  suppressPinchClickUntil = Date.now() + 650;
+  window.open(commaEntrance.href, '_blank');
 }, {capture:true,passive:false});
 viewport.addEventListener('touchcancel',()=>{commaTouchStart=null},{capture:true,passive:true});
 viewport.addEventListener('pointermove', e => {
