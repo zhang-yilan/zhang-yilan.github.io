@@ -54,6 +54,13 @@
   #search input { width:150px; border:0; outline:0; background:transparent; border-radius:0; padding:2px 0 1px; font:inherit; color:inherit; appearance:none; }
   #search input::-webkit-search-cancel-button { display:none; }
   #search-status { display:none; }
+  /* Clickable punctuation inherits the exact surrounding font and layout. */
+  .comma-link, .comma-link:visited, .comma-link:hover {
+    color:inherit; font:inherit; letter-spacing:inherit; text-decoration:none !important;
+    cursor:pointer; -webkit-text-decoration:none; pointer-events:auto;
+  }
+  .inline-gallery-caption .comma-link { pointer-events:auto; }
+
 
   /* INLINE GALLERY — EDIT HERE: controls live in the Works canvas, not a popup. */
   .picture { position:relative; overflow:visible; }
@@ -62,9 +69,13 @@
   .inline-gallery-controls { position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity 220ms ease; }
   .inline-gallery-controls.visible { opacity:1; }
   .inline-gallery-controls button { position:absolute; top:50%; transform:translateY(-50%); border:0; background:transparent; padding:5px 7px; font:inherit; font-size:17px; cursor:pointer; pointer-events:auto; }
-  .inline-gallery-controls .inline-prev { left:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(-100%, -50%) scale(var(--inline-ui-inverse, 1)); transform-origin:right center; }
-  .inline-gallery-controls .inline-next { right:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(100%, -50%) scale(var(--inline-ui-inverse, 1)); transform-origin:left center; }
-  .inline-gallery-caption { position:absolute; top:calc(100% + var(--inline-caption-gap, 12px)); left:50%; transform:translateX(-50%) scale(var(--inline-ui-inverse, 1)); transform-origin:center top; width:calc(100% / var(--inline-ui-inverse, 1)); max-width:none; text-align:center; white-space:pre-wrap; font-size:12px; line-height:18px; pointer-events:none; }
+  .inline-gallery-controls .inline-prev { left:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(-100%, -50%) scale(var(--inline-caption-inverse, var(--inline-ui-inverse, 1))); transform-origin:right center; }
+  .inline-gallery-controls .inline-next { right:calc(-1 * var(--inline-arrow-gap, 38px)); transform:translate(100%, -50%) scale(var(--inline-caption-inverse, var(--inline-ui-inverse, 1))); transform-origin:left center; }
+  .inline-gallery-caption { position:absolute; top:calc(100% + var(--inline-caption-gap, 12px)); left:50%; transform:translateX(-50%) scale(var(--inline-caption-inverse, var(--inline-ui-inverse, 1))); transform-origin:center top; width:calc(100% / var(--inline-caption-inverse, var(--inline-ui-inverse, 1))); max-width:none; text-align:center; white-space:pre-wrap; font-size:12px; line-height:18px; pointer-events:none; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:none; }
+
+  /* Only the rendered caption characters can be selected; never its empty layout box. */
+  .inline-gallery-caption .caption-text { pointer-events:none; cursor:text; user-select:text; -webkit-user-select:text; touch-action:auto; }
+  .inline-gallery-controls.visible .caption-text { pointer-events:auto; }
 
   /* iPad only: use the same embedded Chinese Songti glyphs as phones.
      Do not change the laptop or phone layouts. */
@@ -83,12 +94,12 @@
     }
     .inline-gallery-controls .inline-prev {
       left:50%; right:auto;
-      transform:translate(-100%, 0) scale(var(--inline-ui-inverse, 1));
+      transform:translate(-100%, 0) scale(var(--inline-caption-inverse, var(--inline-ui-inverse, 1)));
       transform-origin:right top;
     }
     .inline-gallery-controls .inline-next {
       left:50%; right:auto;
-      transform:translate(0, 0) scale(var(--inline-ui-inverse, 1));
+      transform:translate(0, 0) scale(var(--inline-caption-inverse, var(--inline-ui-inverse, 1)));
       transform-origin:left top;
     }
   }
@@ -230,15 +241,6 @@
     #me-panel .bio-line span { display:inline; }
   }
 
-/* Show the pointing-hand cursor only over the actual comma ink. */
-#viewport.comma-ink-hover:not(.panning) { cursor:pointer; }
-/* Hidden comma entrance: intentionally outside the opening screen. */
-#comma-entrance { position:absolute; z-index:8; font:18px/1 "Courier New",monospace; color:var(--ink); text-decoration:none!important; cursor:pointer; user-select:none; padding:5px 9px; white-space:pre; }
-#comma-entrance:hover, #comma-entrance:focus, #comma-entrance:active { text-decoration:none!important; outline:none; }
-/* The SVG glyph itself receives pointer events; its transparent surroundings do not. */
-#comma-entrance { pointer-events:none; cursor:inherit; width:18px; height:18px; display:block; }
-#comma-entrance svg { display:block; width:18px; height:18px; overflow:visible; pointer-events:none; }
-#comma-entrance text { pointer-events:none; }
 </style>
 </head>
 <body>
@@ -783,6 +785,7 @@ const WORK_GALLERIES = {
 // Keep caption and arrows at normal gallery font size even as Works zooms.
 // Gaps are screen-pixel distances, converted into world coordinates.
 let inlinePicture = null;
+let inlineCaptionStartZoom = null;
 let inlineUIFrame = 0;
 function scheduleInlineGalleryUI() {
   if (!inlinePicture || inlineUIFrame) return;
@@ -792,11 +795,15 @@ function updateInlineGalleryUI() {
   if (!inlinePicture) return;
   const zoom = Math.max(scale, 0.000001);
   inlinePicture.style.setProperty('--inline-ui-inverse', String(1 / zoom));
+  // Caption starts at its familiar size, then grows with additional zoom.
+  // Gallery arrows grow with captions; video controls retain their original screen size.
+  const captionGrowth = Math.max(1, zoom / Math.max(inlineCaptionStartZoom || zoom, 0.000001));
+  inlinePicture.style.setProperty('--inline-caption-inverse', String(captionGrowth / zoom));
   inlinePicture.style.setProperty('--inline-arrow-gap', `${44 / zoom}px`);
   const phone = window.matchMedia('(max-width:600px)').matches || window.matchMedia('(min-width:601px) and (max-width:1199px) and (pointer:coarse)').matches;
   const caption = inlinePicture.querySelector('.inline-gallery-caption');
   if (phone && caption) {
-    // The caption is inversely scaled to remain readable on screen.
+    // Measure the visible caption so mobile arrows stay below its growing text.
     const captionHeight = caption.getBoundingClientRect().height;
     inlinePicture.style.setProperty('--inline-caption-height', `${captionHeight / zoom}px`);
     inlinePicture.style.setProperty('--inline-mobile-arrow-gap', `${20 / zoom}px`);
@@ -952,7 +959,7 @@ function createElement(item) {
     el.appendChild(link);
   } else {
     el.className += " word movable " + (item.className || "");
-    el.textContent = item.text;
+    renderLinkedCommas(el, item.text);
   }
   el.addEventListener("dragstart", e => e.preventDefault());
   el.addEventListener("pointerdown", (e) => {
@@ -967,113 +974,35 @@ function createElement(item) {
   world.appendChild(el);
   { const pos=originalWorkPosition(item); setPosition(el,pos.x,pos.y); }
 }
+// Make English and Chinese commas clickable without altering their glyphs or fonts.
+// Text nodes are rebuilt safely; future gallery captions use this same function.
+function renderLinkedCommas(container, value) {
+  const text = String(value ?? '');
+  container.replaceChildren();
+  const parts = text.split(/([,，])/g);
+  for (const part of parts) {
+    if (part !== ',' && part !== '，') {
+      if (part) container.appendChild(document.createTextNode(part));
+      continue;
+    }
+    const link = document.createElement('a');
+    link.className = 'comma-link';
+    link.href = 'comma.html';
+    link.target = '_blank';
+    link.rel = 'noopener';
+    link.textContent = part;
+    link.draggable = false;
+    link.setAttribute('aria-label', 'Open comma page');
+    link.addEventListener('dragstart', e => e.preventDefault());
+    // Avoid starting a picture/item drag or gallery navigation when clicking punctuation.
+    link.addEventListener('pointerdown', e => e.stopPropagation());
+    link.addEventListener('click', e => e.stopPropagation());
+    container.appendChild(link);
+  }
+}
 ELEMENTS.forEach(createElement);
 galleryTriggerPictures=[...world.querySelectorAll('.item[data-type="image"]')];
 fitWorksComposition();
-
-// COMMA ENTRANCE — random location immediately outside the initial visible frame.
-// Placement uses the actual opening zoom/pan, so it works on desktop and phone.
-const commaEntrance = document.createElement('a');
-commaEntrance.id = 'comma-entrance';
-commaEntrance.href = 'comma.html';
-commaEntrance.target = '_blank';
-commaEntrance.rel = 'noopener';
-// SVG text uses painted-glyph hit testing, unlike an HTML link's rectangular box.
-// This leaves every transparent pixel available for ordinary canvas dragging.
-commaEntrance.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><text x="0" y="15" fill="currentColor" font-family="Courier New, monospace" font-size="18">,</text></svg>';
-commaEntrance.setAttribute('aria-label','Open the comma canvas in a new tab');
-world.appendChild(commaEntrance);
-function placeCommaEntrance() {
-  const margin = 8 + Math.random() * 24; // close to the opening edge on phone and desktop
-  const edge = Math.floor(Math.random() * 4);
-  const w = window.innerWidth, h = window.innerHeight;
-  const sx = edge === 0 ? -margin - 18*scale : edge === 1 ? w + margin : 0.12*w + Math.random()*.76*w;
-  const sy = edge === 2 ? -margin - 18*scale : edge === 3 ? h + margin : 0.12*h + Math.random()*.76*h;
-  commaEntrance.style.fontSize = `18px`; // same canvas font size as the name tag
-  commaEntrance.style.padding = `0`;
-  commaEntrance.style.left = `${(sx-panX)/scale}px`;
-  commaEntrance.style.top = `${(sy-panY)/scale}px`;
-}
-placeCommaEntrance();
-// Use a real alpha-mask of the comma for click detection. SVG/anchor hit
-// regions vary by browser (notably Safari), so neither receives pointer events.
-// All pointer events pass through to the canvas, allowing ordinary dragging.
-const commaHitCanvas = document.createElement('canvas');
-commaHitCanvas.width = 180;
-commaHitCanvas.height = 180;
-const commaHitCtx = commaHitCanvas.getContext('2d', {willReadFrequently:true});
-commaHitCtx.font = '180px "Courier New", monospace';
-commaHitCtx.textBaseline = 'alphabetic';
-commaHitCtx.fillStyle = '#000';
-commaHitCtx.fillText(',', 0, 150);
-const commaHitPixels = commaHitCtx.getImageData(0,0,180,180).data;
-function isOnCommaInk(clientX,clientY) {
-  const svg = commaEntrance.querySelector('svg');
-  const matrix = svg.getScreenCTM();
-  if (!matrix) return false;
-  // Convert the screen click to the SVG's original 18x18 coordinates,
-  // regardless of the homepage zoom and pan.
-  // Screen rectangle gives the same coordinate mapping for this translated,
-  // uniformly scaled SVG, without relying on DOMPoint on mobile browsers.
-  const r = svg.getBoundingClientRect();
-  if (!r.width || !r.height) return false;
-  const x = Math.floor((clientX-r.left) / r.width * 180);
-  const y = Math.floor((clientY-r.top) / r.height * 180);
-  if (x<0 || x>=180 || y<0 || y>=180) return false;
-  return commaHitPixels[(y*180+x)*4+3] > 110;
-}
-let commaPointerStart = null;
-viewport.addEventListener('pointerdown', e => {
-  commaPointerStart = e.pointerType !== "touch" && e.button === 0 && isOnCommaInk(e.clientX,e.clientY)
-    ? {id:e.pointerId,x:e.clientX,y:e.clientY} : null;
-}, true);
-viewport.addEventListener('pointerup', e => {
-  const start = commaPointerStart;
-  commaPointerStart = null;
-  if (start && start.id === e.pointerId &&
-      Math.hypot(e.clientX-start.x,e.clientY-start.y) < 5 &&
-      isOnCommaInk(e.clientX,e.clientY) && Date.now() >= suppressPinchClickUntil) {
-    window.open('comma.html','_blank','noopener');
-  }
-}, true);
-viewport.addEventListener('pointercancel', () => {commaPointerStart=null},true);
-// Mobile: use touch events and same-tab navigation, which is reliable on
-// iOS/Android even when popup creation from pointerup is blocked.
-let commaTouchStart = null;
-viewport.addEventListener('touchstart', e => {
-  commaTouchStart = null;
-  if (e.touches.length !== 1 || Date.now() < suppressPinchClickUntil) return;
-  const t = e.touches[0];
-  if (isOnCommaInk(t.clientX,t.clientY))
-    commaTouchStart = {id:t.identifier,x:t.clientX,y:t.clientY};
-}, {capture:true,passive:true});
-viewport.addEventListener('touchmove', e => {
-  if (!commaTouchStart || e.touches.length !== 1) {commaTouchStart=null;return;}
-  const t=e.touches[0];
-  if (Math.hypot(t.clientX-commaTouchStart.x,t.clientY-commaTouchStart.y)>12)
-    commaTouchStart=null;
-}, {capture:true,passive:true});
-viewport.addEventListener('touchend', e => {
-  const start=commaTouchStart;
-  commaTouchStart=null;
-  if (!start || e.touches.length || Date.now()<suppressPinchClickUntil) return;
-  const t=[...e.changedTouches].find(t=>t.identifier===start.id);
-  if (!t || Math.hypot(t.clientX-start.x,t.clientY-start.y)>12 ||
-      !isOnCommaInk(t.clientX,t.clientY)) return;
-  e.preventDefault();
-  suppressPinchClickUntil = Date.now() + 650;
-  window.open(commaEntrance.href, '_blank');
-}, {capture:true,passive:false});
-viewport.addEventListener('touchcancel',()=>{commaTouchStart=null},{capture:true,passive:true});
-viewport.addEventListener('pointermove', e => {
-  // Preserve normal image cursors and the grabbing cursor while panning.
-  const overInk = e.pointerType === 'mouse' && !drag && !pinch &&
-    !e.target.closest('.item') && isOnCommaInk(e.clientX,e.clientY);
-  viewport.classList.toggle('comma-ink-hover', !!overInk);
-});
-viewport.addEventListener('pointerleave', () => viewport.classList.remove('comma-ink-hover'));
-viewport.addEventListener('pointerdown', () => viewport.classList.remove('comma-ink-hover'), true);
-
 
 viewport.addEventListener("pointerdown", e => {
   if (e.button !== 0 || pinch || touchPoints.size > 1 || e.target.closest(".item")) return;
@@ -1148,6 +1077,10 @@ function openGallery(workId, fromZoom=false) {
   activeGallery=WORK_GALLERIES[workId] || [{type:"image",src:work.src,caption:work.caption}];
   activeIndex=0;galleryWorkId=workId;
   inlinePicture=el.querySelector('.picture');
+  // Anchor caption growth to the fixed gallery entry threshold, not the
+  // current animated zoom frame (which can overshoot during fast trackpad zoom).
+  const entrySize = Math.min(inlinePicture.offsetWidth, inlinePicture.offsetHeight);
+  inlineCaptionStartZoom = entrySize > 0 ? galleryThreshold() / entrySize : scale;
   el.classList.add('inline-gallery-active');
   scheduleInlineGalleryUI();
   let controls=inlinePicture.querySelector('.inline-gallery-controls');
@@ -1158,6 +1091,9 @@ function openGallery(workId, fromZoom=false) {
     controls.querySelector('.inline-next').addEventListener('click',e=>{e.stopPropagation();stepGallery(1);});
     // Prevent clicking an arrow from starting the Works rearrangement gesture.
     controls.querySelectorAll('button').forEach(b=>b.addEventListener('pointerdown',e=>e.stopPropagation()));
+    // Text selection in the caption must never start dragging the image or canvas.
+    const selectableCaption = controls.querySelector('.inline-gallery-caption');
+    // The caption box itself must not intercept input; only its text does.
     inlinePicture.appendChild(controls);
   }
   renderGallery();
@@ -1186,7 +1122,13 @@ function renderGallery() {
     if(img) {img.src=item.src;img.alt=item.caption||'Work view';img.style.display='block';}
   }
   const controls=inlinePicture.querySelector('.inline-gallery-controls');
-  controls.querySelector('.inline-gallery-caption').textContent=item.caption||'';
+  const captionBox = controls.querySelector('.inline-gallery-caption');
+  const captionText = document.createElement('span');
+  captionText.className = 'caption-text';
+  renderLinkedCommas(captionText, item.caption||'');
+  captionText.addEventListener('pointerdown', e => e.stopPropagation());
+  captionText.addEventListener('touchstart', e => e.stopPropagation(), {passive:true});
+  captionBox.replaceChildren(captionText);
   requestAnimationFrame(updateInlineGalleryUI);
   // Show navigation only when the gallery contains more than one distinct media file.
   const hasMultipleMedia = new Set(activeGallery.map(media => media.src)).size > 1;
@@ -1206,7 +1148,7 @@ function closeGallery() {
   const controls=inlinePicture.querySelector('.inline-gallery-controls');
   if(controls) controls.classList.remove('visible');
   inlinePicture.closest('.item')?.classList.remove('inline-gallery-active');
-  galleryWorkId=null;inlinePicture=null;activeGallery=[];
+  galleryWorkId=null;inlinePicture=null;inlineCaptionStartZoom=null;activeGallery=[];
 }
 // GALLERY INTERACTION — wheel/pinch scales the entire gallery, not just the image.
 // Zooming out below 100% closes the gallery and returns to Works.
@@ -1528,83 +1470,17 @@ document.querySelector("#save-layout").addEventListener("click", async () => {
 });
 
 // Search artwork captions (including gallery media), without changing positions.
-// COMMA SEARCH — typing "," / "comma" / "逗号" / "逗號" jumps to
-// the comma already hidden in the Works canvas; visitors click it to enter comma.html.
-let commaSearchTimer = 0;
-let commaReturnView = null;
-let commaRecenterTimers = [];
-function restoreViewAfterCommaSearch() {
-  commaRecenterTimers.forEach(clearTimeout);
-  commaRecenterTimers = [];
-  if (!commaReturnView) return;
-  ({scale, panX, panY} = commaReturnView);
-  commaReturnView = null;
-  applyView();
-}
-const commaSearchTerms = new Set([",", "，", "comma", "逗号", "逗號"]);
-function isCommaSearch(value) {
-  return commaSearchTerms.has(value.trim().toLocaleLowerCase());
-}
-function startCommaSearchZoom() {
-  if (isNotesActive() ||
-      document.querySelector("#me-panel").classList.contains("open")) return;
-  if (!isCommaSearch(document.querySelector("#search-input").value)) return;
-  if (!commaReturnView) commaReturnView = {scale, panX, panY};
-  const searchField = document.querySelector("#search-input");
-  searchField.blur();
-  // Use the comma's original world coordinates, not its current on-screen
-  // bounding rectangle. This also works when the phone initially fits the
-  // whole composition and the comma is tiny or outside the visible screen.
-  const commaX = parseFloat(commaEntrance.style.left) + 8;
-  const commaY = parseFloat(commaEntrance.style.top) + 12;
-  function revealComma() {
-    const w = viewport.clientWidth, h = viewport.clientHeight;
-    // Fit the visible comma ink comfortably on either desktop or phone.
-    const targetScale = boundedZoom(Math.min(w * .88 / 11, h * .82 / 12));
-    scale = targetScale;
-    panX = w / 2 - commaX * scale;
-    panY = h / 2 - commaY * scale;
-    applyView();
-  }
-  // Mobile browsers resize their visual viewport as the search keyboard
-  // closes. Position only after that resize, otherwise the comma can be
-  // stranded offscreen. No changes to the normal opening layout.
-  revealComma();
-  if (window.matchMedia('(max-width:600px)').matches) {
-    commaRecenterTimers.forEach(clearTimeout);
-    commaRecenterTimers = [350, 750].map(delay => setTimeout(() => {
-      if (isCommaSearch(searchField.value) && commaReturnView) revealComma();
-    }, delay));
-  }
-}
+// Search responds as the visitor types; punctuation in captions still links to comma.html.
 const commaSearchInput = document.querySelector("#search-input");
 commaSearchInput.addEventListener("input", event => {
-  if (event.isComposing) return;
-  clearTimeout(commaSearchTimer);
-  const value = event.target.value;
-  if (isCommaSearch(value) && !isNotesActive() &&
-      !document.querySelector("#me-panel").classList.contains("open")) {
-    commaSearchTimer = setTimeout(startCommaSearchZoom, 650);
-  } else {
-    restoreViewAfterCommaSearch();
-    filterCurrentPage(value);
-  }
+  if (!event.isComposing) filterCurrentPage(event.target.value);
 });
 commaSearchInput.addEventListener("compositionend", () => {
-  clearTimeout(commaSearchTimer);
-  if (isCommaSearch(commaSearchInput.value))
-    commaSearchTimer = setTimeout(startCommaSearchZoom, 650);
-  else {
-    restoreViewAfterCommaSearch();
-    filterCurrentPage(commaSearchInput.value);
-  }
+  filterCurrentPage(commaSearchInput.value);
 });
 document.querySelector("#search").addEventListener("submit", event => {
   event.preventDefault();
-  if (isCommaSearch(commaSearchInput.value)) {
-    clearTimeout(commaSearchTimer);
-    startCommaSearchZoom();
-  }
+  filterCurrentPage(commaSearchInput.value);
 });
 
 </script>

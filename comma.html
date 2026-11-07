@@ -122,18 +122,39 @@ viewport.addEventListener('pointermove',e=>{
 function endPointer(e){active.delete(e.pointerId);if(active.size<2)pinch=null;gesture=null;viewport.classList.remove('dragging')}
 viewport.addEventListener('pointerup',endPointer);viewport.addEventListener('pointercancel',endPointer);
 // Trackpad: normalize wheel units and coalesce updates into animation frames.
-let wheelDelta=0,wheelX=0,wheelY=0,wheelFrame=0;
+// Smooth zoom, with the same scroll sensitivity as the Works page.
+const COMMA_WHEEL_SENSITIVITY=0.0035; // lower = slower, higher = faster
+let commaZoomFrame=0,commaZoomTarget=null;
+function stopCommaWheelZoom(){
+  if(commaZoomFrame)cancelAnimationFrame(commaZoomFrame);
+  commaZoomFrame=0;commaZoomTarget=null;
+}
+function animateCommaWheelZoom(){
+  commaZoomFrame=0;
+  if(!commaZoomTarget)return;
+  const t=commaZoomTarget,ease=0.62;
+  const ns=scale*Math.exp(Math.log(t.scale/scale)*ease);
+  const nx=panX+(t.x-panX)*ease,ny=panY+(t.y-panY)*ease;
+  if(Math.abs(Math.log(t.scale/scale))<0.00015&&Math.abs(t.x-panX)<0.08&&Math.abs(t.y-panY)<0.08){
+    scale=t.scale;panX=t.x;panY=t.y;commaZoomTarget=null;
+  }else{scale=ns;panX=nx;panY=ny;}
+  render();
+  if(commaZoomTarget)commaZoomFrame=requestAnimationFrame(animateCommaWheelZoom);
+}
 viewport.addEventListener('wheel',e=>{
   e.preventDefault();
   const unit=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1;
-  wheelDelta+=e.deltaY*unit;
-  wheelX=e.clientX;wheelY=e.clientY;
-  if(!wheelFrame)wheelFrame=requestAnimationFrame(()=>{
-    wheelFrame=0;
-    const delta=Math.max(-240,Math.min(240,wheelDelta));wheelDelta=0;
-    zoomAt(scale*Math.exp(-delta*.0022),wheelX,wheelY);
-  });
+  const delta=Math.max(-260,Math.min(260,e.deltaY*unit));
+  if(!delta)return;
+  const x=e.clientX,y=e.clientY;
+  const t=commaZoomTarget||{scale,x:panX,y:panY};
+  const ns=Math.max(SETTINGS.minZoom,Math.min(SETTINGS.maxZoom,t.scale*Math.exp(-delta*COMMA_WHEEL_SENSITIVITY)));
+  const ratio=ns/t.scale;
+  t.x=x-(x-t.x)*ratio;t.y=y-(y-t.y)*ratio;t.scale=ns;
+  commaZoomTarget=t;
+  if(!commaZoomFrame)commaZoomFrame=requestAnimationFrame(animateCommaWheelZoom);
 },{passive:false});
+viewport.addEventListener('pointerdown',stopCommaWheelZoom,{capture:true});
 // Prevent browser-native image dragging.
 world.addEventListener('dragstart',e=>e.preventDefault());
 async function init(){
