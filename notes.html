@@ -8,118 +8,146 @@
 <title>Notes — Yilan Zhang</title>
 
 <style>
-  :root { --paper: #ffffff; }
+  :root {
+    --paper: #ffffff;
+  }
 
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+  }
 
   html, body {
-    margin:0;
-    width:100%;
-    min-height:100%;
-    background:#ffffff;
-    overflow-x:hidden;
-    scrollbar-width:none;
-    -ms-overflow-style:none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100%;
+    background: #ffffff;
+    overflow-x: hidden;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
   }
 
   html::-webkit-scrollbar,
   body::-webkit-scrollbar {
-    display:none;
-    width:0;
-    height:0;
+    display: none;
+    width: 0;
+    height: 0;
   }
 
   body {
-    color:#24231f;
-    font-family:"Courier New","Songti TC","Songti SC","STSong",serif;
+    color: #24231f;
+    font-family: "Courier New","Songti TC","Songti SC","STSong",serif;
   }
 
   #reading-flow,
   .reading-cycle {
-    width:100%;
-    display:flex;
-    flex-direction:column;
-    gap:0;
-    margin:0;
-    padding:0;
-    border:0;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 0;
+    row-gap: 0;
+    column-gap: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
 
-  .reading-cycle { flex:none; }
+  .reading-cycle {
+    flex: none;
+  }
 
   .spread-row {
-    width:100%;
-    display:flex;
-    align-items:stretch;
-    justify-content:center;
-    gap:0;
-    flex:none;
-    margin:0;
-    padding:0;
-    border:0;
-    line-height:0;
-    font-size:0;
+    display: flex;
+    flex: none;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: flex-start;
+
+    width: 100%;
+    gap: 0;
+    row-gap: 0;
+    column-gap: 0;
+
+    margin: 0;
+    padding: 0;
+    border: 0;
+
+    line-height: 0;
+    font-size: 0;
   }
 
   .page {
-    display:block;
-    position:relative;
-    flex:0 0 50%;
-    width:50%;
-    min-width:0;
-    margin:0;
-    padding:0;
-    border:0;
-    outline:0;
-    background:#ffffff;
-    line-height:0;
-    overflow:hidden;
-    cursor:pointer;
-    -webkit-tap-highlight-color:transparent;
-  }
+    display: block;
+    position: relative;
 
-  .page canvas {
-    display:block;
-    width:100%;
-    height:auto;
-    margin:0;
-    padding:0;
-    border:0;
-    background:#ffffff;
+    flex: 0 0 50%;
+    width: 50%;
+    min-width: 0;
+
+    margin: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+
+    background: #ffffff;
+    overflow: hidden;
+
+    line-height: 0;
+    font-size: 0;
+
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .page.landscape {
-    flex-basis:100%;
-    width:100%;
+    flex: 0 0 100%;
+    width: 100%;
+  }
+
+  .page canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+
+    margin: 0;
+    padding: 0;
+    border: 0;
+
+    vertical-align: top;
+    background: #ffffff;
   }
 
   .page.filler {
-    cursor:pointer;
-    background:#ffffff;
+    background: #ffffff;
+    cursor: pointer;
   }
 
   .page.filler::after {
-    content:"";
-    display:block;
-    width:100%;
-    aspect-ratio:var(--page-ratio);
-    background:#ffffff;
+    content: "";
+    display: block;
+    width: 100%;
+    aspect-ratio: var(--page-ratio);
+    background: #ffffff;
   }
 
-  .loading,.error {
-    min-height:100vh;
-    display:grid;
-    place-items:center;
-    padding:24px;
-    font:14px/1.5 "Courier New",monospace;
-    text-align:center;
+  .loading,
+  .error {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    font: 14px/1.5 "Courier New",monospace;
+    text-align: center;
   }
 
-  .error { color:#8b2525; }
+  .error {
+    color: #8b2525;
+  }
 </style>
 </head>
 
 <body>
+
 <main id="reading-flow" aria-label="Notes">
   <div class="loading" id="status">Loading notes…</div>
 </main>
@@ -132,6 +160,11 @@
 
   // Add PDFs here. Newest first.
   const NOTES = [
+    "2026.10.20.pdf",
+    "2026.9.15.pdf",
+    "2026.9.14.pdf",
+    "2026.9.13.pdf",
+    "2026.8.25.pdf",
     "2026.8.20.pdf",
     "2026.8.6.pdf",
     "2026.7.29.pdf",
@@ -156,11 +189,12 @@
     "2026.2.24.pdf"
   ].map(label => ({
     label,
-    url:"pdfs/" + label
+    url: "pdfs/" + label
   }));
 
   const flow = document.getElementById("reading-flow");
   const status = document.getElementById("status");
+
   const VERSION = "3.11.174";
 
   if (!window.pdfjsLib) {
@@ -172,6 +206,9 @@
 
   pdfjsLib.GlobalWorkerOptions.workerSrc =
     `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${VERSION}/pdf.worker.min.js`;
+
+
+  // CREATE PDF PAGE LINKS
 
   function pageLink(spec) {
     const a = document.createElement("a");
@@ -190,19 +227,28 @@
 
     a.dataset.renderKey = spec.key;
 
+    // Reserve the actual page dimensions before rendering.
+    const viewport = spec.page.getViewport({scale: 1});
+
+    a.style.aspectRatio =
+      `${viewport.width} / ${viewport.height}`;
+
     return a;
   }
 
-  // Blank page matches the dimensions of the PDF page it completes.
+
+  // CREATE BLANK COMPLETION PAGE
+
   function fillerLink(spec) {
     const a = document.createElement("a");
 
     a.className = "page filler";
+
     a.href = spec.file.url;
     a.target = "_blank";
     a.rel = "noopener";
 
-    const viewport = spec.page.getViewport({scale:1});
+    const viewport = spec.page.getViewport({scale: 1});
 
     a.style.setProperty(
       "--page-ratio",
@@ -217,32 +263,43 @@
     return a;
   }
 
+
+  // INSPECT PDF FILES
+
   async function inspectFile(file) {
     const pdf = await pdfjsLib.getDocument(file.url).promise;
+
     const pages = [];
 
     for (let n = 1; n <= pdf.numPages; n++) {
       const page = await pdf.getPage(n);
-      const v = page.getViewport({scale:1});
+
+      const v = page.getViewport({scale: 1});
 
       const orientation =
-        v.width / v.height > 1.12 ? "landscape" : "portrait";
+        v.width / v.height > 1.12
+          ? "landscape"
+          : "portrait";
 
       pages.push({
         file,
-        pageNumber:n,
+        pageNumber: n,
         page,
         orientation,
-        key:file.url + "|" + n
+        key: file.url + "|" + n
       });
     }
 
     return pages;
   }
 
-  // Portrait pages pair only within their own PDF.
-  // An odd final portrait page gets a white blank page.
-  // Landscape pages occupy a whole row.
+
+  // ARRANGE PAGES INTO ROWS
+  // Each PDF remains a separate document.
+  // Portrait pages pair within their own PDF.
+  // Odd final portrait pages receive a blank page.
+  // Landscape pages occupy an entire row.
+
   function arrangeRows(allFiles) {
     const rows = [];
 
@@ -250,38 +307,62 @@
       let left = null;
 
       for (const spec of pages) {
+
         if (spec.orientation === "landscape") {
+
           if (left) {
-            rows.push({left, filler:left});
+            rows.push({
+              left,
+              filler: left
+            });
+
             left = null;
           }
 
-          rows.push({full:spec});
+          rows.push({
+            full: spec
+          });
 
         } else if (!left) {
+
           left = spec;
 
         } else {
-          rows.push({left, right:spec});
+
+          rows.push({
+            left,
+            right: spec
+          });
+
           left = null;
         }
       }
 
       if (left) {
-        rows.push({left, filler:left});
+        rows.push({
+          left,
+          filler: left
+        });
       }
     }
 
     return rows;
   }
 
+
+  // BUILD ROW ELEMENTS
+
   function rowElement(row) {
     const section = document.createElement("section");
+
     section.className = "spread-row";
 
     if (row.full) {
+
       section.appendChild(pageLink(row.full));
+
     } else {
+
       section.appendChild(pageLink(row.left));
 
       section.appendChild(
@@ -294,39 +375,81 @@
     return section;
   }
 
+
+  // RENDER PDF PAGE
+  // Prevent duplicate rendering operations on the same element.
+
   async function renderPage(el, spec) {
-    if (el.dataset.rendered === "1") return;
 
-    const width = Math.max(
-      160,
-      el.getBoundingClientRect().width
-    );
+    if (
+      el.dataset.rendered === "1" ||
+      el.dataset.rendering === "1"
+    ) {
+      return;
+    }
 
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Lock immediately, before starting asynchronous rendering.
+    el.dataset.rendering = "1";
 
-    const base = spec.page.getViewport({scale:1});
+    let canvas = null;
 
-    const viewport = spec.page.getViewport({
-      scale:width * dpr / base.width
-    });
+    try {
 
-    const canvas = document.createElement("canvas");
+      const width = Math.max(
+        160,
+        el.getBoundingClientRect().width
+      );
 
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
+      const dpr = Math.min(
+        window.devicePixelRatio || 1,
+        2
+      );
 
-    canvas.style.width = "100%";
-    canvas.style.height = "auto";
+      const base = spec.page.getViewport({
+        scale: 1
+      });
 
-    el.appendChild(canvas);
+      const viewport = spec.page.getViewport({
+        scale: width * dpr / base.width
+      });
 
-    await spec.page.render({
-      canvasContext:canvas.getContext("2d",{alpha:false}),
-      viewport
-    }).promise;
+      canvas = document.createElement("canvas");
 
-    el.dataset.rendered = "1";
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+
+      canvas.style.width = "100%";
+      canvas.style.height = "auto";
+
+      el.appendChild(canvas);
+
+      await spec.page.render({
+        canvasContext: canvas.getContext("2d", {
+          alpha: false
+        }),
+        viewport
+      }).promise;
+
+      el.dataset.rendered = "1";
+
+    } catch (err) {
+
+      if (canvas && canvas.parentNode === el) {
+        canvas.remove();
+      }
+
+      console.error("Page rendering failed:", spec.key, err);
+
+      throw err;
+
+    } finally {
+
+      delete el.dataset.rendering;
+    }
   }
+
+
+  // CREATE INFINITE SCROLL COPIES
 
   function copyCycle(cycle) {
     const copy = cycle.cloneNode(true);
@@ -337,17 +460,30 @@
       delete el.dataset.rendered;
     });
 
+    copy.querySelectorAll("[data-rendering]").forEach(el => {
+      delete el.dataset.rendering;
+    });
+
     return copy;
   }
 
+
+  // BUILD THE NOTES PAGE
+
   async function build() {
+
     const allFiles = [];
 
     for (const file of NOTES) {
+
       try {
+
         allFiles.push(await inspectFile(file));
+
       } catch (err) {
+
         console.error("Could not load " + file.url, err);
+
         allFiles.push([]);
       }
     }
@@ -355,64 +491,88 @@
     const rows = arrangeRows(allFiles);
 
     if (!rows.length) {
+
       status.className = "error";
+
       status.textContent =
         "No PDF pages could be loaded. Check the PDFs in the pdfs folder.";
+
       return;
     }
 
     const specs = new Map(
-      allFiles.flat().map(spec => [spec.key,spec])
+      allFiles.flat().map(spec => [spec.key, spec])
     );
 
     const cycle = document.createElement("div");
+
     cycle.className = "reading-cycle";
 
-    rows.forEach(row => cycle.appendChild(rowElement(row)));
+    rows.forEach(row => {
+      cycle.appendChild(rowElement(row));
+    });
 
     const before = copyCycle(cycle);
     const after = copyCycle(cycle);
 
     flow.replaceChildren(before, cycle, after);
 
+
+    // LAZY RENDERING
+
     const observer = new IntersectionObserver(entries => {
+
       for (const entry of entries) {
+
         if (!entry.isIntersecting) continue;
 
         const el = entry.target;
+
         const spec = specs.get(el.dataset.renderKey);
 
         if (spec) {
-          renderPage(el,spec).catch(console.error);
+          renderPage(el, spec).catch(console.error);
         }
 
         observer.unobserve(el);
       }
-    }, {rootMargin:"1400px 0px"});
+
+    }, {
+      rootMargin: "1400px 0px"
+    });
 
     flow.querySelectorAll("[data-render-key]").forEach(el => {
       observer.observe(el);
     });
 
+
+    // INITIAL POSITION
+
     requestAnimationFrame(() => {
+
       const h = cycle.getBoundingClientRect().height;
 
-      window.scrollTo(0,h);
+      window.scrollTo(0, h);
 
       const first = cycle.querySelector("[data-render-key]");
 
       if (first) {
+
         const spec = specs.get(first.dataset.renderKey);
 
         if (spec) {
-          renderPage(first,spec).catch(console.error);
+          renderPage(first, spec).catch(console.error);
         }
       }
     });
 
+
+    // INFINITE SCROLL RECENTERING
+
     let recentering = false;
 
     window.addEventListener("scroll", () => {
+
       if (recentering) return;
 
       const h = cycle.getBoundingClientRect().height;
@@ -422,31 +582,47 @@
       const y = window.scrollY;
 
       if (y < h * 0.55) {
+
         recentering = true;
 
-        window.scrollTo(0,y+h);
+        window.scrollTo(0, y + h);
 
-        requestAnimationFrame(() => recentering=false);
+        requestAnimationFrame(() => {
+          recentering = false;
+        });
 
       } else if (y > h * 1.45) {
+
         recentering = true;
 
-        window.scrollTo(0,y-h);
+        window.scrollTo(0, y - h);
 
-        requestAnimationFrame(() => recentering=false);
+        requestAnimationFrame(() => {
+          recentering = false;
+        });
       }
-    }, {passive:true});
+
+    }, {
+      passive: true
+    });
   }
 
+
+  // ERROR HANDLING
+
   build().catch(err => {
+
     console.error(err);
 
     status.className = "error";
+
     status.textContent =
       "Something went wrong while loading the notes.";
+
   });
 
 })();
 </script>
+
 </body>
 </html>
