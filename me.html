@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>张怡澜 Yilan Zhang</title>
+<style>
+  :root { --paper: #f7f6f2; --ink: #24231f; }
+  * { box-sizing: border-box; }
+  html, body { width:100%; height:100%; margin:0; background:var(--paper); color:var(--ink); }
+  body { font-family:"Courier New", "Portfolio Songti", "Embedded Mobile Songti", "Songti TC", "Songti SC", "STSong", "Noto Serif SC", serif; }
+  @font-face { font-family:"Embedded Mobile Songti"; src:url("fonts/songti-works.woff2") format("woff2"); font-style:normal; font-weight:400; font-display:swap; unicode-range:U+753B; }
+  @font-face { font-family:"Portfolio Songti"; src:url("fonts/songti-bio.woff2") format("woff2"); font-style:normal; font-weight:400; font-display:swap; }
+  @media (max-width:600px) {
+    body { font-family:"Courier New", "Portfolio Songti", "Embedded Mobile Songti", "Songti TC", "Songti SC", serif; }
+    .info-content { font-size:13px; line-height:1.65; }
+  }
+  #me-panel { min-height:100%; overflow:auto; }
+  #me-panel .me-centered { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:50px 20px; box-sizing:border-box; }
+  #me-panel .me-text-block { width:max-content; max-width:100%; text-align:left; }
+  #me-panel .info-content { margin:0; max-width:none; text-align:left; font-size:16px; line-height:1.7; }
+  #me-panel .bio-line { white-space:nowrap; margin-bottom:12px; }
+  #me-panel .bio-line:last-child { margin-bottom:0; }
+  #me-panel .bio-line span { margin-left:14px; }
+  @media(max-width:700px) {
+    #me-panel .bio-line { white-space:normal; }
+    #me-panel .bio-line span { display:inline; }
+  }
+</style>
+</head>
+<body>
+<div id="me-panel">
+  <div class="me-centered">
+    <div class="me-text-block">
+      <div class="info-content">
+        <div class="bio-line">张怡澜 <span>Yilan Zhang</span></div>
+        <div class="bio-line">2002年生于中国广东省深圳市 <span>B. 2002, Shenzhen, Guangdong, China</span></div>
+        <div class="bio-line">现居芝加哥、深圳 <span>based in Chicago and Shenzhen</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
