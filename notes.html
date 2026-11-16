@@ -208,20 +208,35 @@
     `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${VERSION}/pdf.worker.min.js`;
 
 
+  // Use non-anchor elements for PDF pages. This keeps click-to-open behavior
+  // while avoiding the browser's native lower-left link destination preview.
+  function makeQuietPageLink(el, url, label) {
+    el.setAttribute("role", "link");
+    el.setAttribute("tabindex", "0");
+    if (label) el.setAttribute("aria-label", label);
+    el.addEventListener("click", () => {
+      window.open(url, "_blank", "noopener");
+    });
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        window.open(url, "_blank", "noopener");
+      }
+    });
+    return el;
+  }
+
   // CREATE PDF PAGE LINKS
 
   function pageLink(spec) {
-    const a = document.createElement("a");
+    const a = document.createElement("div");
 
     a.className = "page" +
       (spec.orientation === "landscape" ? " landscape" : "");
 
-    a.href = spec.file.url + "#page=" + spec.pageNumber;
-    a.target = "_blank";
-    a.rel = "noopener";
-
-    a.setAttribute(
-      "aria-label",
+    makeQuietPageLink(
+      a,
+      spec.file.url + "#page=" + spec.pageNumber,
       spec.file.label + ", page " + spec.pageNumber
     );
 
@@ -240,24 +255,21 @@
   // CREATE BLANK COMPLETION PAGE
 
   function fillerLink(spec) {
-    const a = document.createElement("a");
+    const a = document.createElement("div");
 
     a.className = "page filler";
 
-    a.href = spec.file.url;
-    a.target = "_blank";
-    a.rel = "noopener";
+    makeQuietPageLink(
+      a,
+      spec.file.url,
+      "Blank page completing " + spec.file.label
+    );
 
     const viewport = spec.page.getViewport({scale: 1});
 
     a.style.setProperty(
       "--page-ratio",
       `${viewport.width} / ${viewport.height}`
-    );
-
-    a.setAttribute(
-      "aria-label",
-      "Blank page completing " + spec.file.label
     );
 
     return a;

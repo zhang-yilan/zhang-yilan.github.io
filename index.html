@@ -22,8 +22,8 @@
     -webkit-backface-visibility:hidden;
   }
   .picture, .picture img, .picture .placeholder { cursor:grab; }
-  .item[data-type="me"] .picture, .item[data-type="me"] img, .item[data-type="me"] a,
-  .item[data-type="notes"] .picture, .item[data-type="notes"] img, .item[data-type="notes"] a { cursor:pointer; }
+  .item[data-type="me"] .picture, .item[data-type="me"] img, .item[data-type="me"] .quiet-link,
+  .item[data-type="notes"] .picture, .item[data-type="notes"] img, .item[data-type="notes"] .quiet-link { cursor:pointer; }
   .item img, .item a { -webkit-user-drag:none; user-drag:none; }
   .item.dragging, .item.dragging * { cursor:grabbing !important; }
   .picture .placeholder { font-size:10px; color:var(--muted); }
@@ -33,8 +33,8 @@
   /* Name and Notes tags: always remain on one horizontal line. */
   .item[data-type="name"], .item[data-type="me"], .item[data-type="notes"] { white-space:nowrap; width:max-content; max-width:none; }
   .item[data-type="name"] a, .item[data-type="me"] a { white-space:nowrap; }
-  .word.heading a { color:inherit; text-decoration:none; -webkit-user-drag:none; user-select:none; cursor:pointer; }
-  .word.heading a:hover { text-decoration:underline; text-underline-offset:4px; }
+  .word.heading .quiet-link { color:inherit; text-decoration:none; -webkit-user-drag:none; user-select:none; cursor:pointer; }
+  .word.heading .quiet-link:hover { text-decoration:underline; text-underline-offset:4px; }
   .word.subheading { font-size:24px; }
   .instruction { font-size:16px; cursor:pointer; }
   .item.instruction { cursor:pointer; }
@@ -175,10 +175,9 @@
   #notes-viewport.panning { cursor:grabbing; }
   #notes-world { position:absolute; top:0; left:0; width:1600px; height:1000px; transform-origin:0 0; will-change:transform; }
   .note-link { position:absolute; transform:translateX(-50%); text-align:center; font-size:16px; line-height:1.45; white-space:nowrap; cursor:grab; user-select:none; }
-  .note-link a:link { color:#24231f; text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
-  .note-link a:visited { color:#2259b5; text-decoration:underline; }
-  .note-link a:hover { text-decoration:underline; }
-  .note-link a { -webkit-user-drag:none; user-select:none; }
+  .note-link .quiet-link { color:#24231f; text-decoration:underline; text-underline-offset:2px; cursor:pointer; -webkit-user-drag:none; user-select:none; }
+  .note-link .quiet-link.visited { color:#2259b5; }
+  .note-link .quiet-link:hover { text-decoration:underline; }
   body.notes-active #controls, body.notes-active #search { z-index:18; }
   #notes-panel, .info-panel { display:none; position:fixed; z-index:15; inset:0; overflow:auto; background:var(--paper); padding:28px; }
   #notes-panel.open, .info-panel.open { display:block; }
@@ -275,7 +274,7 @@
 <div id="notes-panel">
   <div id="notes-viewport" aria-label="Notes canvas: drag to pan, scroll to zoom">
     <div id="notes-world">
-      <a id="notes-name" href="#me" aria-label="Personal information" draggable="false">张怡澜  Yilan Zhang</a>
+      <div id="notes-name" role="button" tabindex="0" aria-label="Personal information">张怡澜  Yilan Zhang</div>
       <button id="notes-switch" type="button" aria-label="Return to works">画 works</button>
     </div>
   </div>
@@ -915,6 +914,27 @@ document.addEventListener("click", e => {
   }
 }, true);
 
+// Use clickable elements without href attributes so the browser does not
+// display its native destination preview in the lower-left corner.
+// Keyboard users can still activate these as links with Enter.
+function makeQuietLink(el, url, label) {
+  el.classList.add("quiet-link");
+  el.setAttribute("role", "link");
+  el.setAttribute("tabindex", "0");
+  if (label) el.setAttribute("aria-label", label);
+  el.addEventListener("click", e => {
+    if (e.defaultPrevented) return;
+    window.open(url, "_blank", "noopener");
+  });
+  el.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      window.open(url, "_blank", "noopener");
+    }
+  });
+  return el;
+}
+
 function createElement(item) {
   const el = document.createElement("div");
   el.className = "item";
@@ -935,17 +955,15 @@ function createElement(item) {
     img.onerror = () => { img.remove(); const p = document.createElement("span"); p.className="placeholder"; p.textContent=item.text || "image"; picture.appendChild(p); };
 
     if (item.type === "me" || item.type === "notes") {
-      const link = document.createElement("a");
-      link.href = item.type === "me" ? "me.html" : "notes.html";
-      link.target = "_blank";
-      link.rel = "noopener";
-      link.draggable = false;
+      const link = document.createElement("div");
       link.style.cssText = "display:block;width:100%;height:100%;";
-      link.setAttribute("aria-label", item.type === "me" ? "Open Me page" : "Open Notes page");
+      link.draggable = false;
       link.addEventListener("dragstart", e => e.preventDefault());
       link.addEventListener("click", e => {
         if (moved) { e.preventDefault(); e.stopPropagation(); }
       });
+      makeQuietLink(link, item.type === "me" ? "me.html" : "notes.html",
+        item.type === "me" ? "Open Me page" : "Open Notes page");
       link.appendChild(img);
       picture.appendChild(link);
     } else {
@@ -958,11 +976,11 @@ function createElement(item) {
     el.addEventListener("click", () => { if (!moved) window.open("notes.html", "_blank", "noopener"); });
   } else if (item.type === "name" || item.type === "me") {
     el.className += " word movable " + (item.className || "");
-    const link = document.createElement("a");
-    link.href = "me.html"; link.target = "_blank"; link.rel = "noopener";
+    const link = document.createElement("span");
     link.textContent = item.text; link.draggable = false;
     link.addEventListener("dragstart", e => e.preventDefault());
     link.addEventListener("click", e => { if (moved) { e.preventDefault(); e.stopPropagation(); } });
+    makeQuietLink(link, "me.html", "Open Me page");
     el.appendChild(link);
   } else {
     el.className += " word movable " + (item.className || "");
@@ -992,14 +1010,11 @@ function renderLinkedCommas(container, value) {
       if (part) container.appendChild(document.createTextNode(part));
       continue;
     }
-    const link = document.createElement('a');
+    const link = document.createElement('span');
     link.className = 'comma-link';
-    link.href = 'comma.html';
-    link.target = '_blank';
-    link.rel = 'noopener';
     link.textContent = part;
     link.draggable = false;
-    link.setAttribute('aria-label', 'Open comma page');
+    makeQuietLink(link, 'comma.html', 'Open comma page');
     link.addEventListener('dragstart', e => e.preventDefault());
     // Avoid starting a picture/item drag or gallery navigation when clicking punctuation.
     link.addEventListener('pointerdown', e => e.stopPropagation());
@@ -1290,11 +1305,12 @@ const notesNavOriginal = {};
 function applyNotesView() { notesWorld.style.transform=`translate3d(${notesPanX}px, ${notesPanY}px, 0) scale(${notesScale})`; }
 function createNote(note) {
   const el=document.createElement("div"); el.className="note-link"; el.dataset.id=note.id;
-  const a=document.createElement("a"); a.href=note.href; a.target="_blank"; a.rel="noopener"; a.textContent=note.label;
-  // Prevent the browser from dragging a PDF URL as a ghost/grey link box.
-  a.draggable = false;
-  a.addEventListener("dragstart", e => e.preventDefault());
-  a.addEventListener("click", e => { if(notesMoved) { e.preventDefault(); e.stopPropagation(); } });
+  const a=document.createElement("span"); a.textContent=note.label;
+  a.addEventListener("click", e => {
+    if(notesMoved) { e.preventDefault(); e.stopPropagation(); }
+    else a.classList.add("visited");
+  });
+  makeQuietLink(a, note.href, "Open " + note.label + " PDF");
   el.appendChild(a); notesWorld.appendChild(el); setPosition(el,...Object.values(originalNotePosition(note, NOTES.indexOf(note))));
   el.addEventListener("pointerdown",e=>{
     if(e.button!==0 || pinch || touchPoints.size>1)return;
@@ -1472,6 +1488,12 @@ function showNotes() {
 }
 document.querySelector("#notes-switch").addEventListener("click", () => { if (notesMoved) return; document.querySelector("#notes-panel").classList.remove("open");syncPageControls(); });
 document.querySelector("#notes-name").addEventListener("click", e => { e.preventDefault(); if (!notesMoved) showMe(); });
+document.querySelector("#notes-name").addEventListener("keydown", e => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    if (!notesMoved) showMe();
+  }
+});
 document.querySelector("#me-to-works").addEventListener("click", () => {
   document.querySelector("#me-panel").classList.remove("open");
   document.querySelector("#notes-panel").classList.remove("open");
