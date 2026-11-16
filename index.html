@@ -344,8 +344,8 @@
 ======================================================================== */
 const ELEMENTS = [
   // Move anything by changing x (right/left) and y (down/up).
-  { id:"name", type:"me", src:"images/IMG_5634.png", text:"张怡澜  Yilan Zhang", x:4021, y:318 },
-  { id:"notes-label", type:"notes", src:"images/IMG_5633.png", text:"笔记 notes", x:2375, y:706 },
+  { id:"name", type:"me", src:"images/IMG_5634.png", text:"张怡澜  Yilan Zhang", x:5382, y:4390 },
+  { id:"notes-label", type:"notes", src:"images/IMG_5633.png", text:"笔记 notes", x:3645, y:4390 },
 
 // Paste these picture entries inside const ELEMENTS = [ ... ]
 // EDIT HERE: replace this entire composition with Layout Editor generated entries, including both tags.
@@ -811,7 +811,9 @@ function applyView() {
 // Measure the actual rendered items rather than assuming the 1600 x 1000 world
 // contains them. The margin is measured in screen pixels.
 function fitWorksComposition() {
-  const items = [...world.querySelectorAll(".item")];
+  // Frame only the artwork. The Me and Notes navigation images are excluded
+  // so their positions never change the opening zoom or composition bounds.
+  const items = [...world.querySelectorAll('.item[data-type="image"]')];
   if (!items.length) return;
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
   for (const el of items) {
