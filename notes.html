@@ -443,13 +443,13 @@
         el.getBoundingClientRect().width
       );
 
-      // Render at the phone's native pixel density (many iPhones use 3x).
-      // The previous 2x cap made PDF text and fine details look soft on
-      // high-density screens, especially when the page was enlarged.
-      const dpr = Math.min(
-        window.devicePixelRatio || 1,
-        3
-      );
+      // Render phone pages at 4x CSS resolution so text remains sharper
+      // when the reader pinches to enlarge a page. Keep desktop rendering
+      // at its normal device-pixel density to avoid unnecessary memory use.
+      const isPhone = window.matchMedia("(max-width: 600px)").matches;
+      const dpr = isPhone
+        ? 4
+        : Math.min(window.devicePixelRatio || 1, 3);
 
       const base = spec.page.getViewport({
         scale: 1
