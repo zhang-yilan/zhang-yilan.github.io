@@ -12,15 +12,11 @@
   button { font:inherit; color:inherit; }
   #viewport { position:fixed; inset:0; overflow:hidden; cursor:grab; touch-action:none; }
   #viewport.panning { cursor:grabbing; }
-  #world { position:absolute; left:0; top:0; width:1600px; height:1000px; transform-origin:0 0; will-change:transform; }
+  #world { position:absolute; left:0; top:0; width:1600px; height:1000px; transform-origin:0 0; }
   .item { position:absolute; user-select:none; }
   .item.movable { cursor:move; }
   .picture { width:200px; height:calc(200px * 2 / 3); border:0; padding:0; background:transparent; display:flex; align-items:center; justify-content:center; }
   .picture img { width:100%; height:100%; object-fit:contain; display:block; }
-  .picture img {
-    backface-visibility:hidden;
-    -webkit-backface-visibility:hidden;
-  }
   .picture, .picture img, .picture .placeholder { cursor:grab; }
   .item[data-type="me"] .picture, .item[data-type="me"] img, .item[data-type="me"] .quiet-link,
   .item[data-type="notes"] .picture, .item[data-type="notes"] img, .item[data-type="notes"] .quiet-link { cursor:pointer; }
@@ -416,16 +412,31 @@ const ELEMENTS = [
    desktop and phone intentionally use the SAME picture coordinates.
    The exported phone coordinates you supplied are identical to desktop.
 
-   The function originalWorkPosition() below already handles phones:
-   pictures use the x/y values from EDIT 1, while the name and Notes
-   tags are repositioned to fit the phone screen. phoneOpeningPan()
-   controls the initial phone view. Leave these functions unchanged.
+   On phones and iPads, the Me and Notes image tabs are automatically moved
+   above the artwork and included in the opening fit. Laptop/desktop positions
+   remain exactly as entered in EDIT 1. phoneOpeningPan() is retained for
+   compatibility with the phone opening behavior.
 
    If you later arrange DIFFERENT phone picture positions in the editor,
    this website will need a code change to use MOBILE_POSITIONS.
 ======================================================================== */
 const isMobile = () => window.matchMedia("(max-width:600px)").matches;
 const mobileWidth = () => Math.max(280, Math.min(window.innerWidth, 600));
+// Phone and iPad layouts keep the Me and Notes image tabs inside the fitted
+// artwork composition. Laptop/desktop layouts continue using their EDIT 1 coordinates.
+const isCompactTouchLayout = () => window.matchMedia("(pointer:coarse) and (max-width:1400px)").matches;
+function compactTouchNavigationPositions() {
+  const artwork = ELEMENTS.filter(item => item.type === "image");
+  if (!artwork.length) return {};
+  const minX = Math.min(...artwork.map(item => item.x));
+  const minY = Math.min(...artwork.map(item => item.y));
+  // Put the two 200px-wide navigation thumbnails in a row just above the
+  // upper-left edge of the artwork. They remain part of the same movable canvas.
+  return {
+    name: { x: minX, y: minY - 155 },
+    "notes-label": { x: minX + 224, y: minY - 155 }
+  };
+}
 // Phone opens on the first picture, at the left edge and below the header.
 // The picture arrangement itself is never changed.
 function phoneOpeningPan() {
@@ -434,8 +445,12 @@ function phoneOpeningPan() {
   return {x:-first.x, y:Math.round(window.innerHeight * 0.37 - first.y)};
 }
 function originalWorkPosition(item) {
-  // EDIT 1 controls all composition coordinates, including the name and Notes tags.
-  // Desktop and phone share these coordinates.
+  // On phones and iPads, keep the navigation thumbnails within the composition.
+  // On laptops/desktops, preserve their exact saved EDIT 1 coordinates.
+  if (isCompactTouchLayout() && (item.type === "me" || item.type === "notes")) {
+    const positions = compactTouchNavigationPositions();
+    return positions[item.id] || {x:item.x,y:item.y};
+  }
   return {x:item.x,y:item.y};
 }
 const world = document.querySelector("#world");
@@ -803,7 +818,7 @@ function updateInlineGalleryUI() {
   }
 }
 function applyView() {
-  world.style.transform = `translate3d(${panX}px, ${panY}px, 0) scale(${scale})`;
+  world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
   scheduleInlineGalleryUI();
   scheduleGalleryZoomTrigger();
 }
@@ -811,9 +826,13 @@ function applyView() {
 // Measure the actual rendered items rather than assuming the 1600 x 1000 world
 // contains them. The margin is measured in screen pixels.
 function fitWorksComposition() {
-  // Frame only the artwork. The Me and Notes navigation images are excluded
-  // so their positions never change the opening zoom or composition bounds.
-  const items = [...world.querySelectorAll('.item[data-type="image"]')];
+  // Laptop/desktop: frame artwork only, preserving the existing navigation positions.
+  // Phone/iPad: include the repositioned Me and Notes thumbnails so all three
+  // groups of images are visible together inside the opening frame.
+  const selector = isCompactTouchLayout()
+    ? '.item[data-type="image"], .item[data-type="me"], .item[data-type="notes"]'
+    : '.item[data-type="image"]';
+  const items = [...world.querySelectorAll(selector)];
   if (!items.length) return;
   let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity;
   for (const el of items) {
@@ -1027,6 +1046,32 @@ function renderLinkedCommas(container, value) {
 ELEMENTS.forEach(createElement);
 galleryTriggerPictures=[...world.querySelectorAll('.item[data-type="image"], .item[data-type="me"], .item[data-type="notes"]')];
 fitWorksComposition();
+
+// Mobile browsers can cache the transformed canvas before its async images
+// have finished decoding, leaving both pictures and captions looking soft.
+// Once the visible canvas images are decoded, re-apply the same transform so
+// the browser repaints the layer at the correct resolution. This does not
+// change the layout, zoom, or positions.
+const canvasImages = [...world.querySelectorAll('.picture img')];
+Promise.all(canvasImages.map(img => new Promise(resolve => {
+  const decodeIfPossible = () => {
+    if (!img.naturalWidth || typeof img.decode !== 'function') {
+      resolve();
+      return;
+    }
+    img.decode().catch(() => {}).finally(resolve);
+  };
+  // `complete` is also true for broken images, so check it before adding
+  // load/error listeners (whose events may already have fired).
+  if (img.complete) {
+    decodeIfPossible();
+    return;
+  }
+  img.addEventListener('load', decodeIfPossible, {once:true});
+  img.addEventListener('error', resolve, {once:true});
+}))).then(() => {
+  requestAnimationFrame(() => requestAnimationFrame(() => applyView()));
+});
 
 viewport.addEventListener("pointerdown", e => {
   if (e.button !== 0 || pinch || touchPoints.size > 1 || e.target.closest(".item")) return;

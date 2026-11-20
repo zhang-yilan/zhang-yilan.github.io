@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10"><title>,</title>
 <style>
-:root{--paper:#f7f6f2;--ink:#24231f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Courier New",monospace}#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none}#viewport.dragging{cursor:grabbing}#viewport.comma-ink-hover:not(.dragging){cursor:pointer}#world{position:absolute;left:0;top:0;transform-origin:0 0;width:1px;height:1px;will-change:transform}.picture{position:absolute;user-select:none;touch-action:none;cursor:grab}.picture.dragging{cursor:grabbing}.picture img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}#comma{position:absolute;color:var(--ink);font-family:"Courier New",monospace;line-height:1;white-space:pre;text-decoration:none!important;pointer-events:none;user-select:none;touch-action:none}#comma:hover,#comma:focus,#comma:active{text-decoration:none!important;outline:none}
+:root{--paper:#f7f6f2;--ink:#24231f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Courier New",monospace}#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;visibility:hidden}#viewport.ready{visibility:visible}#viewport.dragging{cursor:grabbing}#viewport.comma-ink-hover:not(.dragging){cursor:pointer}#world{position:absolute;left:0;top:0;transform-origin:0 0;width:1px;height:1px;will-change:transform}.picture{position:absolute;user-select:none;touch-action:none;cursor:grab}.picture.dragging{cursor:grabbing}.picture img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}#comma{position:absolute;color:var(--ink);font-family:"Courier New",monospace;line-height:1;white-space:pre;text-decoration:none!important;pointer-events:none;user-select:none;touch-action:none}#comma:hover,#comma:focus,#comma:active{text-decoration:none!important;outline:none}
 
 #controls{position:fixed;inset:0;z-index:10;pointer-events:none}
 #controls button{position:absolute;right:3px;transform:translateY(-50%);writing-mode:vertical-rl;text-orientation:mixed;background:transparent;border:0;padding:5px 0;cursor:pointer;font:14px "Courier New",monospace;color:var(--ink);pointer-events:auto}
@@ -158,9 +158,23 @@ viewport.addEventListener('wheel',e=>{
 viewport.addEventListener('pointerdown',stopCommaWheelZoom,{capture:true});
 // Prevent browser-native image dragging.
 world.addEventListener('dragstart',e=>e.preventDefault());
+function shuffled(items){
+  const copy=[...items];
+  for(let i=copy.length-1;i>0;i--){
+    const j=Math.floor(Math.random()*(i+1));
+    [copy[i],copy[j]]=[copy[j],copy[i]];
+  }
+  return copy;
+}
+function newVisitUrl(){
+  const token=(window.crypto&&crypto.randomUUID)
+    ? crypto.randomUUID()
+    : Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  return 'comma.html?visit='+encodeURIComponent(token);
+}
 async function init(){
-  await Promise.all(IMAGES.map(createPicture));
-  const comma=document.createElement('a');comma.id='comma';comma.href='comma.html';comma.target='_blank';comma.rel='noopener';comma.textContent=',';
+  await Promise.all(shuffled(IMAGES).map(createPicture));
+  const comma=document.createElement('a');comma.id='comma';comma.href=newVisitUrl();comma.target='_blank';comma.rel='noopener';comma.textContent=',';
   comma.setAttribute('aria-label','Open another randomly arranged comma page');
   comma.style.fontSize=SETTINGS.commaFontSize+'px';
   const box=findSpot(SETTINGS.commaFontSize*.75,SETTINGS.commaFontSize*1.2);
@@ -199,6 +213,7 @@ async function init(){
   comma.style.top=box.y+'px';
   render();
   initialView={scale,panX,panY};
+  viewport.classList.add('ready');
   // Only ink pixels are clickable; transparent character bearings remain pannable.
   const hitCanvas=document.createElement('canvas');
   hitCanvas.width=200;hitCanvas.height=240;
@@ -228,7 +243,7 @@ async function init(){
   },true);
   viewport.addEventListener('pointerup',e=>{
     if(Date.now()>ignorePointerUntil&&e.pointerType!=='touch'&&downOnInk&&downPoint&&Math.hypot(e.clientX-downPoint.x,e.clientY-downPoint.y)<5&&onInk(e.clientX,e.clientY)){
-      window.open('comma.html','_blank','noopener');
+      window.open(newVisitUrl(),'_blank','noopener');
     }
     downOnInk=false;
   },true);
