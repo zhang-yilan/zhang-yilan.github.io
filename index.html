@@ -1047,31 +1047,13 @@ ELEMENTS.forEach(createElement);
 galleryTriggerPictures=[...world.querySelectorAll('.item[data-type="image"], .item[data-type="me"], .item[data-type="notes"]')];
 fitWorksComposition();
 
-// Mobile browsers can cache the transformed canvas before its async images
-// have finished decoding, leaving both pictures and captions looking soft.
-// Once the visible canvas images are decoded, re-apply the same transform so
-// the browser repaints the layer at the correct resolution. This does not
-// change the layout, zoom, or positions.
-const canvasImages = [...world.querySelectorAll('.picture img')];
-Promise.all(canvasImages.map(img => new Promise(resolve => {
-  const decodeIfPossible = () => {
-    if (!img.naturalWidth || typeof img.decode !== 'function') {
-      resolve();
-      return;
-    }
-    img.decode().catch(() => {}).finally(resolve);
-  };
-  // `complete` is also true for broken images, so check it before adding
-  // load/error listeners (whose events may already have fired).
-  if (img.complete) {
-    decodeIfPossible();
-    return;
-  }
-  img.addEventListener('load', decodeIfPossible, {once:true});
-  img.addEventListener('error', resolve, {once:true});
-}))).then(() => {
-  requestAnimationFrame(() => requestAnimationFrame(() => applyView()));
-});
+// Mobile browsers can cache transformed canvas layers at low resolution.
+ // Do not force every full-resolution artwork image to decode simultaneously:
+ // on iPhones this can exhaust WebKit's tab memory and crash the page.
+ // Images already use decoding="async"; let the browser decode them as needed.
+ // Reapply the existing view after initial layout without decoding dozens of
+ // full-resolution images at once.
+requestAnimationFrame(() => requestAnimationFrame(() => applyView()));
 
 viewport.addEventListener("pointerdown", e => {
   if (e.button !== 0 || pinch || touchPoints.size > 1 || e.target.closest(".item")) return;
