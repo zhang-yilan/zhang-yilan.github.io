@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=10"><title>,</title>
 <style>
-:root{--paper:#f7f6f2;--ink:#24231f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Courier New",monospace}#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;visibility:hidden}#viewport.ready{visibility:visible}#viewport.dragging{cursor:grabbing}#viewport.comma-ink-hover:not(.dragging){cursor:pointer}#world{position:absolute;left:0;top:0;transform-origin:0 0;width:1px;height:1px;will-change:transform}.picture{position:absolute;user-select:none;touch-action:none;cursor:grab}.picture.dragging{cursor:grabbing}.picture img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}#comma{position:absolute;color:var(--ink);font-family:"Courier New",monospace;line-height:1;white-space:pre;text-decoration:none!important;pointer-events:none;user-select:none;touch-action:none}#comma:hover,#comma:focus,#comma:active{text-decoration:none!important;outline:none}
+:root{--paper:#f7f6f2;--ink:#24231f}*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Courier New",monospace}#viewport{position:fixed;inset:0;overflow:hidden;cursor:grab;touch-action:none;visibility:hidden}#viewport.ready{visibility:visible}#viewport.dragging{cursor:grabbing}#viewport.comma-ink-hover:not(.dragging){cursor:pointer}#world{position:absolute;left:0;top:0;transform-origin:0 0;width:1px;height:1px;will-change:transform}.picture{position:absolute;user-select:none;touch-action:none;cursor:grab}.picture.dragging{cursor:grabbing}.picture img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;backface-visibility:hidden;-webkit-backface-visibility:hidden;image-rendering:auto}#comma{position:absolute;color:var(--ink);font-family:"Courier New",monospace;line-height:1;white-space:pre;text-decoration:none!important;pointer-events:none;user-select:none;touch-action:none}#comma:hover,#comma:focus,#comma:active{text-decoration:none!important;outline:none}
 
 #controls{position:fixed;inset:0;z-index:10;pointer-events:none}
 #controls button{position:absolute;right:3px;transform:translateY(-50%);writing-mode:vertical-rl;text-orientation:mixed;background:transparent;border:0;padding:5px 0;cursor:pointer;font:14px "Courier New",monospace;color:var(--ink);pointer-events:auto}
@@ -66,7 +66,7 @@ const SETTINGS = {
   spreadRadius: 1850, imageGap: 65,
   commaFontSize: 18, // world pixels: comma looks normal after zooming out
   initialPictureWidthScreens: 2.8, // opening image spans this many screen widths
-  minZoom: .035, maxZoom: 90
+  minZoom: .0001, maxZoom: 10000
 };
 const viewport=document.getElementById('viewport'),world=document.getElementById('world');
 const random=(a,b)=>a+Math.random()*(b-a);
@@ -126,22 +126,28 @@ viewport.addEventListener('pointermove',e=>{
 });
 function endPointer(e){active.delete(e.pointerId);if(active.size<2)pinch=null;gesture=null;viewport.classList.remove('dragging')}
 viewport.addEventListener('pointerup',endPointer);viewport.addEventListener('pointercancel',endPointer);
-// Trackpad: normalize wheel units and coalesce updates into animation frames.
-// Smooth zoom, with the same scroll sensitivity as the Works page.
-const COMMA_WHEEL_SENSITIVITY=0.0035; // lower = slower, higher = faster
-let commaZoomFrame=0,commaZoomTarget=null;
+// Match the main Works canvas: frame-rate independent, cursor-anchored zoom.
+const COMMA_MIN_ZOOM=SETTINGS.minZoom, COMMA_MAX_ZOOM=SETTINGS.maxZoom;
+let commaZoomFrame=0,commaZoomTarget=null,commaZoomLastTime=0;
 function stopCommaWheelZoom(){
   if(commaZoomFrame)cancelAnimationFrame(commaZoomFrame);
-  commaZoomFrame=0;commaZoomTarget=null;
+  commaZoomFrame=0;commaZoomTarget=null;commaZoomLastTime=0;
 }
-function animateCommaWheelZoom(){
+function boundedCommaZoom(value){return Math.max(COMMA_MIN_ZOOM,Math.min(COMMA_MAX_ZOOM,value))}
+function animateCommaWheelZoom(now){
   commaZoomFrame=0;
   if(!commaZoomTarget)return;
-  const t=commaZoomTarget,ease=0.62;
+  const dt=commaZoomLastTime?Math.min(32,Math.max(4,now-commaZoomLastTime)):16.67;
+  commaZoomLastTime=now;
+  const t=commaZoomTarget;
+  const ease=1-Math.exp(-dt/95);
   const ns=scale*Math.exp(Math.log(t.scale/scale)*ease);
-  const nx=panX+(t.x-panX)*ease,ny=panY+(t.y-panY)*ease;
-  if(Math.abs(Math.log(t.scale/scale))<0.00015&&Math.abs(t.x-panX)<0.08&&Math.abs(t.y-panY)<0.08){
-    scale=t.scale;panX=t.x;panY=t.y;commaZoomTarget=null;
+  const ratio=ns/scale;
+  const nx=t.x-(t.x-panX)*ratio,ny=t.y-(t.y-panY)*ratio;
+  if(Math.abs(Math.log(t.scale/scale))<0.00015){
+    const finalRatio=t.scale/scale;
+    panX=t.x-(t.x-panX)*finalRatio;panY=t.y-(t.y-panY)*finalRatio;
+    scale=t.scale;commaZoomTarget=null;commaZoomLastTime=0;
   }else{scale=ns;panX=nx;panY=ny;}
   render();
   if(commaZoomTarget)commaZoomFrame=requestAnimationFrame(animateCommaWheelZoom);
@@ -149,15 +155,21 @@ function animateCommaWheelZoom(){
 viewport.addEventListener('wheel',e=>{
   e.preventDefault();
   const unit=e.deltaMode===1?16:e.deltaMode===2?innerHeight:1;
-  const delta=Math.max(-260,Math.min(260,e.deltaY*unit));
+  const delta=Math.max(-180,Math.min(180,e.deltaY*unit));
   if(!delta)return;
   const x=e.clientX,y=e.clientY;
-  const t=commaZoomTarget||{scale,x:panX,y:panY};
-  const ns=Math.max(SETTINGS.minZoom,Math.min(SETTINGS.maxZoom,t.scale*Math.exp(-delta*COMMA_WHEEL_SENSITIVITY)));
-  const ratio=ns/t.scale;
-  t.x=x-(x-t.x)*ratio;t.y=y-(y-t.y)*ratio;t.scale=ns;
+  if(e.ctrlKey){
+    if(commaZoomFrame){cancelAnimationFrame(commaZoomFrame);commaZoomFrame=0}
+    commaZoomTarget=null;commaZoomLastTime=0;
+    const ns=boundedCommaZoom(scale*Math.exp(-delta*.008));
+    const ratio=ns/scale;
+    panX=x-(x-panX)*ratio;panY=y-(y-panY)*ratio;scale=ns;render();
+    return;
+  }
+  const t=commaZoomTarget||{scale,x,y};
+  t.x=x;t.y=y;t.scale=boundedCommaZoom(t.scale*Math.exp(-delta*.0025));
   commaZoomTarget=t;
-  if(!commaZoomFrame)commaZoomFrame=requestAnimationFrame(animateCommaWheelZoom);
+  if(!commaZoomFrame){commaZoomLastTime=0;commaZoomFrame=requestAnimationFrame(animateCommaWheelZoom)}
 },{passive:false});
 viewport.addEventListener('pointerdown',stopCommaWheelZoom,{capture:true});
 // Prevent browser-native image dragging.
